@@ -31,7 +31,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm animate-in">
-        <h1 className="text-2xl font-bold text-center mb-8">로그인</h1>
+        <h1 className="font-display font-black text-4xl text-center mb-2 tracking-tight">Taskrit</h1>
+        <p className="text-text-hint text-xs text-center mb-8">차세대 태스크 매칭 플랫폼</p>
 
         <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-1.5">

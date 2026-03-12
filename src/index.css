@@ -86,6 +86,30 @@ html {
   --color-glass-hover: rgba(255, 255, 255, 0.06);
 }
 
+/* Light mode overrides */
+[data-theme="light"] {
+  --color-bg: #f4f4f4;
+  --color-surface: #ffffff;
+  --color-surface-2: #ececec;
+  --color-surface-3: #e2e2e2;
+  --color-border: #d4d4d4;
+  --color-border-light: #e8e8e8;
+  --color-text: #111111;
+  --color-text-sub: #555555;
+  --color-text-hint: #aaaaaa;
+  --color-hover: #e8e8e8;
+  --color-active: #111111;
+  --color-active-text: #ffffff;
+  --color-error: #d32f2f;
+  --color-error-bg: #fff0f0;
+  --color-success: #388e3c;
+  --color-success-bg: #f0fff0;
+  --color-accent: #666666;
+  --color-glass: rgba(0, 0, 0, 0.03);
+  --color-glass-border: rgba(0, 0, 0, 0.08);
+  --color-glass-hover: rgba(0, 0, 0, 0.05);
+}
+
 @layer base {
   * {
     box-sizing: border-box;

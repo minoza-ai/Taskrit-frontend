@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
+import { useThemeStore } from '../lib/theme';
 
 const navItems = [
   { to: '/dashboard', label: '대시보드', icon: DashboardIcon },
@@ -13,6 +14,17 @@ export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const themeMode = useThemeStore((s) => s.mode);
+  const setThemeMode = useThemeStore((s) => s.setMode);
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+
+  const cycleTheme = () => {
+    const next = themeMode === 'system' ? 'dark' : themeMode === 'dark' ? 'light' : 'system';
+    setThemeMode(next);
+  };
+
+  const themeIcon = themeMode === 'system' ? '⚙' : resolvedTheme() === 'dark' ? '🌙' : '☀️';
+  const themeLabel = themeMode === 'system' ? '시스템' : themeMode === 'dark' ? '다크' : '라이트';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -30,7 +42,15 @@ export default function AppLayout() {
               <span className="text-xs text-text-hint font-normal">{user.nickname}</span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cycleTheme}
+              title={`테마: ${themeLabel}`}
+              className="text-xs px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all flex items-center gap-1.5"
+            >
+              <span>{themeIcon}</span>
+              <span>{themeLabel}</span>
+            </button>
             <button
               onClick={() => navigate('/membership')}
               className="text-xs px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all"
@@ -59,7 +79,7 @@ export default function AppLayout() {
 
       {/* Bottom navigation - pill style */}
       <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
-        <div className="flex gap-1.5 bg-surface-2 rounded-full p-1.5 shadow-[0_4px_24px_rgba(0,0,0,0.4)] border border-border">
+        <div className="flex gap-1.5 bg-surface-2 rounded-full p-1.5 shadow-[0_4px_24px_rgba(0,0,0,0.4)] [[data-theme=light]_&]:shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-border">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
