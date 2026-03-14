@@ -12,7 +12,7 @@ interface TeamMember {
   match: number;
 }
 
-export default function ProjectDetailPage() {
+const ProjectDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -44,36 +44,36 @@ export default function ProjectDetailPage() {
     robot: '⚙️',
   };
 
-  function formatBudget(value: number | null): string {
+  const formatBudget = (value: number | null): string => {
     if (value === null || value === undefined) return '';
     return value.toLocaleString('ko-KR');
-  }
+  };
 
-  function parseBudgetToNumber(value: string): number | null {
+  const parseBudgetToNumber = (value: string): number | null => {
     const digits = value.replace(/[^0-9]/g, '');
     if (!digits) return null;
     return Number(digits);
-  }
+  };
 
-  function formatUnixToDateInput(unix: number | null): string {
+  const formatUnixToDateInput = (unix: number | null): string => {
     if (!unix) return '';
     const d = new Date(unix * 1000);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }
+  };
 
-  function parseDeadlineToUnix(value: string): number | null {
+  const parseDeadlineToUnix = (value: string): number | null => {
     if (!value) return null;
     const unix = Math.floor(new Date(`${value}T23:59:59`).getTime() / 1000);
     return Number.isNaN(unix) ? null : unix;
-  }
+  };
 
   useEffect(() => {
     let ignore = false;
 
-    async function load(token: string) {
+    const load = async (token: string) => {
       if (!id) throw new Error('잘못된 프로젝트 ID입니다');
       const result = await getProject(token, id);
       if (!ignore) {
@@ -86,9 +86,9 @@ export default function ProjectDetailPage() {
         setDetailedDescription(result.detailed_description || '');
         setError(null);
       }
-    }
+    };
 
-    async function run() {
+    const run = async () => {
       if (!accessToken) {
         setIsLoading(false);
         return;
@@ -115,7 +115,7 @@ export default function ProjectDetailPage() {
       } finally {
         if (!ignore) setIsLoading(false);
       }
-    }
+    };
 
     run();
 
@@ -124,7 +124,7 @@ export default function ProjectDetailPage() {
     };
   }, [accessToken, id, logout, tryRefresh]);
 
-  async function handleSave() {
+  const handleSave = async () => {
     if (!accessToken || !id || !name.trim() || isSaving) return;
 
     setIsSaving(true);
@@ -177,9 +177,9 @@ export default function ProjectDetailPage() {
     } finally {
       setIsSaving(false);
     }
-  }
+  };
 
-  async function handleDelete() {
+  const handleDelete = async () => {
     if (!accessToken || !id || isDeleting) return;
     const ok = window.confirm('정말 이 프로젝트를 삭제하시겠습니까?');
     if (!ok) return;
@@ -210,11 +210,11 @@ export default function ProjectDetailPage() {
     } finally {
       setIsDeleting(false);
     }
-  }
+  };
 
-  function formatUnixTime(unix: number): string {
+  const formatUnixTime = (unix: number): string => {
     return new Date(unix * 1000).toLocaleString('ko-KR');
-  }
+  };
 
   return (
     <div className="animate-in">
@@ -437,4 +437,6 @@ export default function ProjectDetailPage() {
       )}
     </div>
   );
-}
+};
+
+export default ProjectDetailPage;

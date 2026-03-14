@@ -16,7 +16,7 @@ interface Conversation {
   unread: number;
 }
 
-export default function MessagesPage() {
+const MessagesPage = () => {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
 
@@ -147,4 +147,6 @@ export default function MessagesPage() {
       </div>
     </div>
   );
-}
+};
+
+export default MessagesPage;

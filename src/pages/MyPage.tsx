@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 
-export default function MyPage() {
+const MyPage = () => {
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const updateUser = useAuthStore((s) => s.updateUser);
@@ -23,7 +23,7 @@ export default function MyPage() {
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
 
-  async function handleUpdate(e: React.FormEvent) {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accessToken) return;
     setBusy(true);
@@ -50,18 +50,18 @@ export default function MyPage() {
     } finally {
       setBusy(false);
     }
-  }
+  };
 
-  async function handleDelete() {
+  const handleDelete = async () => {
     if (!confirm('정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
     try {
       await deleteAccount();
     } catch (err: any) {
       setError(err.message || '탈퇴에 실패했습니다');
     }
-  }
+  };
 
-  async function handleConnectWallet() {
+  const handleConnectWallet = async () => {
     if (!accessToken || !walletAddress) return;
     setWalletBusy(true);
     setWalletError(null);
@@ -98,9 +98,9 @@ export default function MyPage() {
     } finally {
       setWalletBusy(false);
     }
-  }
+  };
 
-  async function handleDisconnectWallet() {
+  const handleDisconnectWallet = async () => {
     if (!accessToken) return;
     if (!confirm('지갑 연동을 해제하시겠습니까?')) return;
     setWalletBusy(true);
@@ -114,7 +114,7 @@ export default function MyPage() {
     } finally {
       setWalletBusy(false);
     }
-  }
+  };
 
   if (!user) {
     return (
@@ -280,9 +280,9 @@ export default function MyPage() {
       </div>
     </div>
   );
-}
+};
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+const InfoRow = ({ label, value }: { label: string; value: string }) => {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[11px] text-text-hint uppercase tracking-wider font-medium">
@@ -291,7 +291,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="text-sm text-text font-medium break-all">{value}</span>
     </div>
   );
-}
+};
+
+export default MyPage;
 
 // Extend window for ethereum provider
 declare global {

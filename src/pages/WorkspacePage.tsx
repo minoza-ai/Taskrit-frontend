@@ -14,7 +14,7 @@ interface SharedFile {
   uploadedBy: string;
 }
 
-export default function WorkspacePage() {
+const WorkspacePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'chat' | 'files' | 'tasks' | 'schedule'>('chat');
@@ -147,4 +147,6 @@ export default function WorkspacePage() {
       )}
     </div>
   );
-}
+};
+
+export default WorkspacePage;

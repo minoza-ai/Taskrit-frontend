@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 
-export default function LoginPage() {
+const LoginPage = () => {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -12,7 +12,7 @@ export default function LoginPage() {
 
   const canSubmit = Boolean(userId && password && !isLoading);
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
@@ -26,7 +26,7 @@ export default function LoginPage() {
         setError(err.message || '로그인에 실패했습니다');
       }
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
@@ -86,4 +86,6 @@ export default function LoginPage() {
       </div>
     </div>
   );
-}
+};
+
+export default LoginPage;

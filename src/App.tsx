@@ -15,19 +15,19 @@ import MembershipPage from './pages/MembershipPage';
 import MessagesPage from './pages/MessagesPage';
 import AppLayout from './components/AppLayout';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const accessToken = useAuthStore((s) => s.accessToken);
   if (!accessToken) return <Navigate to="/login" replace />;
   return <>{children}</>;
-}
+};
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const accessToken = useAuthStore((s) => s.accessToken);
   if (accessToken) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
-}
+};
 
-export default function App() {
+const App = () => {
   const accessToken = useAuthStore((s) => s.accessToken);
   const fetchUser = useAuthStore((s) => s.fetchUser);
 
@@ -56,4 +56,6 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
-}
+};
+
+export default App;

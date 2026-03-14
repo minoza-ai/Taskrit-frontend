@@ -6,7 +6,7 @@ interface Competency {
   skills: { name: string; level: number }[];
 }
 
-export default function ProfilePage() {
+const ProfilePage = () => {
   const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState<'competency' | 'reputation'>('competency');
 
@@ -146,4 +146,6 @@ export default function ProfilePage() {
       )}
     </div>
   );
-}
+};
+
+export default ProfilePage;

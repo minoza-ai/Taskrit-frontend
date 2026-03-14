@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 
-export default function DashboardPage() {
+const DashboardPage = () => {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
 
@@ -103,4 +103,6 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+};
+
+export default DashboardPage;

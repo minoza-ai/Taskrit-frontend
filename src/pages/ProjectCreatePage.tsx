@@ -11,19 +11,19 @@ interface TeamRequirement {
   role: string;
 }
 
-function parseBudgetToNumber(value: string): number | null {
+const parseBudgetToNumber = (value: string): number | null => {
   const digits = value.replace(/[^0-9]/g, '');
   if (!digits) return null;
   return Number(digits);
-}
+};
 
-function parseDeadlineToUnix(value: string): number | null {
+const parseDeadlineToUnix = (value: string): number | null => {
   if (!value) return null;
   const unix = Math.floor(new Date(`${value}T23:59:59`).getTime() / 1000);
   return Number.isNaN(unix) ? null : unix;
-}
+};
 
-function serializeTeamRequirements(requirements: TeamRequirement[]): string | null {
+const serializeTeamRequirements = (requirements: TeamRequirement[]): string | null => {
   const normalized = requirements
     .map((r, idx) => {
       const role = r.role.trim() || '역할 미정';
@@ -32,9 +32,9 @@ function serializeTeamRequirements(requirements: TeamRequirement[]): string | nu
 
   if (normalized.length === 0) return null;
   return normalized.join('\n');
-}
+};
 
-export default function ProjectCreatePage() {
+const ProjectCreatePage = () => {
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tryRefresh = useAuthStore((s) => s.tryRefresh);
@@ -61,21 +61,21 @@ export default function ProjectCreatePage() {
     '기타',
   ];
 
-  function addRequirement() {
+  const addRequirement = () => {
     setRequirements([...requirements, { type: 'human', count: 1, role: '' }]);
-  }
+  };
 
-  function removeRequirement(idx: number) {
+  const removeRequirement = (idx: number) => {
     setRequirements(requirements.filter((_, i) => i !== idx));
-  }
+  };
 
-  function updateRequirement(idx: number, field: keyof TeamRequirement, value: any) {
+  const updateRequirement = (idx: number, field: keyof TeamRequirement, value: any) => {
     setRequirements(requirements.map((r, i) =>
       i === idx ? { ...r, [field]: value } : r,
     ));
-  }
+  };
 
-  async function handleSubmit() {
+  const handleSubmit = async () => {
     if (!title.trim() || !accessToken || isSubmitting) return;
 
     setIsSubmitting(true);
@@ -114,7 +114,7 @@ export default function ProjectCreatePage() {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="animate-in max-w-lg">
@@ -322,13 +322,15 @@ export default function ProjectCreatePage() {
       )}
     </div>
   );
-}
+};
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+const SummaryRow = ({ label, value }: { label: string; value: string }) => {
   return (
     <div className="flex justify-between items-center">
       <span className="text-xs text-text-hint">{label}</span>
       <span className="text-sm font-medium">{value}</span>
     </div>
   );
-}
+};
+
+export default ProjectCreatePage;

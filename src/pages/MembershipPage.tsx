@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function MembershipPage() {
+const MembershipPage = () => {
   const [currentPlan] = useState<'free' | 'pro'>('free');
 
   const plans = [
@@ -130,4 +130,6 @@ export default function MembershipPage() {
       </div>
     </div>
   );
-}
+};
+
+export default MembershipPage;

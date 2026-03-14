@@ -10,7 +10,7 @@ interface MarketItem {
   sales: number;
 }
 
-export default function MarketplacePage() {
+const MarketplacePage = () => {
   const [activeTab, setActiveTab] = useState<'browse' | 'sell'>('browse');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -32,14 +32,14 @@ export default function MarketplacePage() {
     return matchesSearch && matchesCategory;
   });
 
-  function handleSellSubmit(e: React.FormEvent) {
+  const handleSellSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     alert('노하우 상품이 등록되었습니다! (백엔드 API 연동 예정)');
     setSellTitle('');
     setSellCategory('');
     setSellPrice('');
     setSellDescription('');
-  }
+  };
 
   return (
     <div className="animate-in">
@@ -207,4 +207,6 @@ export default function MarketplacePage() {
       )}
     </div>
   );
-}
+};
+
+export default MarketplacePage;

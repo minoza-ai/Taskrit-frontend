@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 
-export default function RegisterPage() {
+const RegisterPage = () => {
   const navigate = useNavigate();
   const registerFn = useAuthStore((s) => s.register);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -16,7 +16,7 @@ export default function RegisterPage() {
     userId && nickname && password && password === passwordConfirm && !isLoading,
   );
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
@@ -26,7 +26,7 @@ export default function RegisterPage() {
     } catch (err: any) {
       setError(err.message || '회원가입에 실패했습니다');
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
@@ -111,4 +111,6 @@ export default function RegisterPage() {
       </div>
     </div>
   );
-}
+};
+
+export default RegisterPage;

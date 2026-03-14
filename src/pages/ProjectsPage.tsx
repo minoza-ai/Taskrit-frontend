@@ -13,16 +13,16 @@ interface ProjectListItem {
   updatedAt: string;
 }
 
-function formatUnixTime(unix: number): string {
+const formatUnixTime = (unix: number): string => {
   return new Date(unix * 1000).toLocaleDateString('ko-KR');
-}
+};
 
-function formatBudget(value: number | null): string {
+const formatBudget = (value: number | null): string => {
   if (value === null || value === undefined) return '미정';
   return `${value.toLocaleString('ko-KR')}원`;
-}
+};
 
-export default function ProjectsPage() {
+const ProjectsPage = () => {
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tryRefresh = useAuthStore((s) => s.tryRefresh);
@@ -37,7 +37,7 @@ export default function ProjectsPage() {
   useEffect(() => {
     let ignore = false;
 
-    async function loadProjects(token: string) {
+    const loadProjects = async (token: string) => {
       const response = await listProjects(token);
       const mapped = response.projects.map((project) => ({
         id: project.project_uuid,
@@ -52,9 +52,9 @@ export default function ProjectsPage() {
         setProjects(mapped);
         setError(null);
       }
-    }
+    };
 
-    async function run() {
+    const run = async () => {
       if (!accessToken) {
         setIsLoading(false);
         return;
@@ -81,7 +81,7 @@ export default function ProjectsPage() {
       } finally {
         if (!ignore) setIsLoading(false);
       }
-    }
+    };
 
     run();
 
@@ -90,7 +90,7 @@ export default function ProjectsPage() {
     };
   }, [accessToken, logout, tryRefresh]);
 
-  async function handleRefresh() {
+  const handleRefresh = async () => {
     if (!accessToken) return;
     setIsLoading(true);
     setError(null);
@@ -112,7 +112,7 @@ export default function ProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="animate-in">
@@ -181,4 +181,6 @@ export default function ProjectsPage() {
       )}
     </div>
   );
-}
+};
+
+export default ProjectsPage;
