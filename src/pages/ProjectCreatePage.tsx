@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../lib/store';
+import { createProject } from '../lib/api';
 
 type MemberType = 'human' | 'ai' | 'robot';
 
@@ -9,8 +11,34 @@ interface TeamRequirement {
   role: string;
 }
 
+function parseBudgetToNumber(value: string): number | null {
+  const digits = value.replace(/[^0-9]/g, '');
+  if (!digits) return null;
+  return Number(digits);
+}
+
+function parseDeadlineToUnix(value: string): number | null {
+  if (!value) return null;
+  const unix = Math.floor(new Date(`${value}T23:59:59`).getTime() / 1000);
+  return Number.isNaN(unix) ? null : unix;
+}
+
+function serializeTeamRequirements(requirements: TeamRequirement[]): string | null {
+  const normalized = requirements
+    .map((r, idx) => {
+      const role = r.role.trim() || '역할 미정';
+      return `${idx + 1}) ${r.type}/${r.count}명/${role}`;
+    });
+
+  if (normalized.length === 0) return null;
+  return normalized.join('\n');
+}
+
 export default function ProjectCreatePage() {
   const navigate = useNavigate();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tryRefresh = useAuthStore((s) => s.tryRefresh);
+  const logout = useAuthStore((s) => s.logout);
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -20,6 +48,8 @@ export default function ProjectCreatePage() {
   const [requirements, setRequirements] = useState<TeamRequirement[]>([
     { type: 'human', count: 1, role: '' },
   ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const categories = [
     'AI 학습 데이터',
@@ -45,10 +75,45 @@ export default function ProjectCreatePage() {
     ));
   }
 
-  function handleSubmit() {
-    // Would POST to API
-    alert('프로젝트가 등록되었습니다! (백엔드 API 연동 예정)');
-    navigate('/projects');
+  async function handleSubmit() {
+    if (!title.trim() || !accessToken || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const payload = {
+      name: title.trim(),
+      category: category || null,
+      budget: parseBudgetToNumber(budget),
+      deadline: parseDeadlineToUnix(deadline),
+      team_requirements: serializeTeamRequirements(requirements),
+      detailed_description: description.trim() || null,
+    };
+
+    try {
+      const created = await createProject(accessToken, payload);
+      navigate(`/projects/${created.project.project_uuid}`);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            const created = await createProject(token, payload);
+            navigate(`/projects/${created.project.project_uuid}`);
+          } catch (retryErr: any) {
+            setError(retryErr.message || '프로젝트 등록에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setError(err.message || '프로젝트 등록에 실패했습니다');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -218,6 +283,12 @@ export default function ProjectCreatePage() {
           <h1 className="text-xl font-bold mb-1">확인</h1>
           <p className="text-text-sub text-sm mb-6">등록 내용을 확인하세요.</p>
 
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-md bg-error-bg text-error text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="glass-card rounded-lg p-5 mb-4">
             <div className="flex flex-col gap-3">
               <SummaryRow label="제목" value={title} />
@@ -239,8 +310,12 @@ export default function ProjectCreatePage() {
             <button onClick={() => setStep(2)} className="btn-ghost px-4 py-2.5 rounded-lg text-sm">
               이전
             </button>
-            <button onClick={handleSubmit} className="btn-primary flex-1 py-2.5 rounded-lg text-sm cursor-pointer">
-              프로젝트 등록
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !title.trim()}
+              className="btn-primary flex-1 py-2.5 rounded-lg text-sm cursor-pointer"
+            >
+              {isSubmitting ? '등록 중...' : '프로젝트 등록'}
             </button>
           </div>
         </div>

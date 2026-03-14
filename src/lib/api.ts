@@ -194,6 +194,78 @@ export async function walletDisconnect(
   });
 }
 
+/* ====== Projects ====== */
+
+export interface Project {
+  project_uuid: string;
+  owner_user_uuid: string;
+  name: string;
+  category: string | null;
+  budget: number | null;
+  deadline: number | null;
+  team_requirements: string | null;
+  detailed_description: string | null;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+export async function createProject(
+  token: string,
+  data: {
+    name: string;
+    category?: string | null;
+    budget?: number | null;
+    deadline?: number | null;
+    team_requirements?: string | null;
+    detailed_description?: string | null;
+  },
+): Promise<{ message: string; project: Project }> {
+  return request('/projects', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listProjects(token: string): Promise<{ projects: Project[] }> {
+  return request('/projects', {
+    headers: authHeaders(token),
+  });
+}
+
+export async function getProject(token: string, project_uuid: string): Promise<Project> {
+  return request(`/projects/${project_uuid}`, {
+    headers: authHeaders(token),
+  });
+}
+
+export async function updateProject(
+  token: string,
+  project_uuid: string,
+  data: {
+    name?: string;
+    category?: string | null;
+    budget?: number | null;
+    deadline?: number | null;
+    team_requirements?: string | null;
+    detailed_description?: string | null;
+  },
+): Promise<{ message: string; project: Project }> {
+  return request(`/projects/${project_uuid}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProject(token: string, project_uuid: string): Promise<void> {
+  await request(`/projects/${project_uuid}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+}
+
 /* ====== Health ====== */
 
 export async function healthCheck(): Promise<{ status: string }> {

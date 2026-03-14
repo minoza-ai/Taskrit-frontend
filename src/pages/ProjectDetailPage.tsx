@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '../lib/store';
+import { deleteProject, getProject, updateProject, type Project } from '../lib/api';
 
 interface TeamMember {
   id: string;
@@ -13,7 +15,21 @@ interface TeamMember {
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tryRefresh = useAuthStore((s) => s.tryRefresh);
+  const logout = useAuthStore((s) => s.logout);
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'submissions'>('overview');
+  const [project, setProject] = useState<Project | null>(null);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [budget, setBudget] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [teamRequirements, setTeamRequirements] = useState('');
+  const [detailedDescription, setDetailedDescription] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Demo recommended team
   const [recommendedTeam] = useState<TeamMember[]>([
@@ -28,6 +44,178 @@ export default function ProjectDetailPage() {
     robot: '⚙️',
   };
 
+  function formatBudget(value: number | null): string {
+    if (value === null || value === undefined) return '';
+    return value.toLocaleString('ko-KR');
+  }
+
+  function parseBudgetToNumber(value: string): number | null {
+    const digits = value.replace(/[^0-9]/g, '');
+    if (!digits) return null;
+    return Number(digits);
+  }
+
+  function formatUnixToDateInput(unix: number | null): string {
+    if (!unix) return '';
+    const d = new Date(unix * 1000);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function parseDeadlineToUnix(value: string): number | null {
+    if (!value) return null;
+    const unix = Math.floor(new Date(`${value}T23:59:59`).getTime() / 1000);
+    return Number.isNaN(unix) ? null : unix;
+  }
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function load(token: string) {
+      if (!id) throw new Error('잘못된 프로젝트 ID입니다');
+      const result = await getProject(token, id);
+      if (!ignore) {
+        setProject(result);
+        setName(result.name);
+        setCategory(result.category || '');
+        setBudget(formatBudget(result.budget));
+        setDeadline(formatUnixToDateInput(result.deadline));
+        setTeamRequirements(result.team_requirements || '');
+        setDetailedDescription(result.detailed_description || '');
+        setError(null);
+      }
+    }
+
+    async function run() {
+      if (!accessToken) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        await load(accessToken);
+      } catch (err: any) {
+        if (err.status === 401) {
+          const refreshed = await tryRefresh();
+          if (refreshed) {
+            try {
+              await load(useAuthStore.getState().accessToken!);
+            } catch (retryErr: any) {
+              setError(retryErr.message || '프로젝트를 불러오지 못했습니다');
+            }
+          } else {
+            logout();
+          }
+        } else {
+          setError(err.message || '프로젝트를 불러오지 못했습니다');
+        }
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+
+    run();
+
+    return () => {
+      ignore = true;
+    };
+  }, [accessToken, id, logout, tryRefresh]);
+
+  async function handleSave() {
+    if (!accessToken || !id || !name.trim() || isSaving) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await updateProject(accessToken, id, {
+        name: name.trim(),
+        category: category.trim() || null,
+        budget: parseBudgetToNumber(budget),
+        deadline: parseDeadlineToUnix(deadline),
+        team_requirements: teamRequirements.trim() || null,
+        detailed_description: detailedDescription.trim() || null,
+      });
+      setProject(response.project);
+      setCategory(response.project.category || '');
+      setBudget(formatBudget(response.project.budget));
+      setDeadline(formatUnixToDateInput(response.project.deadline));
+      setTeamRequirements(response.project.team_requirements || '');
+      setDetailedDescription(response.project.detailed_description || '');
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            const response = await updateProject(token, id, {
+              name: name.trim(),
+              category: category.trim() || null,
+              budget: parseBudgetToNumber(budget),
+              deadline: parseDeadlineToUnix(deadline),
+              team_requirements: teamRequirements.trim() || null,
+              detailed_description: detailedDescription.trim() || null,
+            });
+            setProject(response.project);
+            setCategory(response.project.category || '');
+            setBudget(formatBudget(response.project.budget));
+            setDeadline(formatUnixToDateInput(response.project.deadline));
+            setTeamRequirements(response.project.team_requirements || '');
+            setDetailedDescription(response.project.detailed_description || '');
+          } catch (retryErr: any) {
+            setError(retryErr.message || '프로젝트 수정에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setError(err.message || '프로젝트 수정에 실패했습니다');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!accessToken || !id || isDeleting) return;
+    const ok = window.confirm('정말 이 프로젝트를 삭제하시겠습니까?');
+    if (!ok) return;
+
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await deleteProject(accessToken, id);
+      navigate('/projects');
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            await deleteProject(token, id);
+            navigate('/projects');
+          } catch (retryErr: any) {
+            setError(retryErr.message || '프로젝트 삭제에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setError(err.message || '프로젝트 삭제에 실패했습니다');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  function formatUnixTime(unix: number): string {
+    return new Date(unix * 1000).toLocaleString('ko-KR');
+  }
+
   return (
     <div className="animate-in">
       <div className="flex items-center gap-3 mb-6">
@@ -39,6 +227,18 @@ export default function ProjectDetailPage() {
           <p className="text-xs text-text-hint">ID: {id}</p>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-md bg-error-bg text-error text-sm">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="glass-card rounded-lg p-5 text-center py-12 mb-6">
+          <p className="text-text-sub">프로젝트를 불러오는 중입니다</p>
+        </div>
+      ) : null}
 
       {/* Tabs */}
       <div className="inline-flex bg-surface-2 rounded-xl p-1 gap-0.5 mb-6">
@@ -59,10 +259,101 @@ export default function ProjectDetailPage() {
 
       {activeTab === 'overview' && (
         <div className="flex flex-col gap-4">
-          <div className="glass-card rounded-lg p-5 text-center py-12">
-            <p className="text-text-sub">프로젝트 데이터가 없습니다</p>
-            <p className="text-xs text-text-hint mt-1">백엔드 API 연동 후 표시됩니다</p>
-          </div>
+          {!project ? (
+            <div className="glass-card rounded-lg p-5 text-center py-12">
+              <p className="text-text-sub">프로젝트 데이터가 없습니다</p>
+              <p className="text-xs text-text-hint mt-1">프로젝트가 삭제되었거나 접근 권한이 없습니다</p>
+            </div>
+          ) : (
+            <>
+              <div className="glass-card rounded-lg p-5">
+                <h2 className="text-base font-semibold mb-4">기본 정보</h2>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-text-sub">프로젝트 제목</label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="glass-input px-3.5 py-3 rounded-md text-[15px] font-sans"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-text-sub">카테고리</label>
+                      <input
+                        type="text"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="glass-input px-3.5 py-3 rounded-md text-sm font-sans"
+                        placeholder="예: 소프트웨어 개발"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-text-sub">예산</label>
+                      <input
+                        type="text"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                        className="glass-input px-3.5 py-3 rounded-md text-sm font-sans"
+                        placeholder="예: 500000"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-text-sub">마감일</label>
+                      <input
+                        type="date"
+                        value={deadline}
+                        onChange={(e) => setDeadline(e.target.value)}
+                        className="glass-input px-3.5 py-3 rounded-md text-sm font-sans"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-text-sub">팀 요구사항</label>
+                      <textarea
+                        value={teamRequirements}
+                        onChange={(e) => setTeamRequirements(e.target.value)}
+                        rows={3}
+                        className="glass-input px-3.5 py-3 rounded-md text-sm font-sans resize-y min-h-[90px]"
+                        placeholder={'1) human/1명/프론트엔드 개발\n2) ai/1명/테스트 자동화'}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-text-sub">상세 설명</label>
+                    <textarea
+                      value={detailedDescription}
+                      onChange={(e) => setDetailedDescription(e.target.value)}
+                      rows={6}
+                      className="glass-input px-3.5 py-3 rounded-md text-sm font-sans resize-y min-h-[120px]"
+                    />
+                  </div>
+                  <div className="text-xs text-text-hint flex flex-col gap-1">
+                    <span>생성일: {formatUnixTime(project.created_at)}</span>
+                    <span>수정일: {formatUnixTime(project.updated_at)}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !name.trim()}
+                      className="btn-primary flex-1 py-2.5 rounded-lg text-sm cursor-pointer"
+                    >
+                      {isSaving ? '저장 중...' : '수정 저장'}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="btn-secondary py-2.5 px-4 rounded-lg text-sm text-error"
+                    >
+                      {isDeleting ? '삭제 중...' : '삭제'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
