@@ -1,0 +1,7 @@
+services:
+  frontend:
+    container_name: taskrit-frontend
+    image: ghcr.io/${GHCR_USERNAME}/taskrit-frontend:latest
+    ports:
+      - "${SERVER_PORT:-80}:80"
+    restart: unless-stopped
