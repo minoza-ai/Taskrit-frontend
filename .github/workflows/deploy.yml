@@ -51,16 +51,18 @@ jobs:
       - name: Configure SSH key
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          timeout 15s ssh-keyscan -T 5 -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy on server
         shell: bash
         run: |
-          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
+          set -euo pipefail
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
             set -e
             docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" -p "${{ secrets.GHCR_PAT }}"
             docker pull "${{ env.IMAGE_NAME }}:latest"
