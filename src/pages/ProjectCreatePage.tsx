@@ -34,6 +34,11 @@ const serializeTeamRequirements = (requirements: TeamRequirement[]): string | nu
   return normalized.join('\n');
 };
 
+const serializeCategories = (categories: string[]): string | null => {
+  if (categories.length === 0) return null;
+  return categories.join(', ');
+};
+
 const ProjectCreatePage = () => {
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -44,7 +49,7 @@ const ProjectCreatePage = () => {
   const [description, setDescription] = useState('');
   const [budget, setBudget] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [category, setCategory] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [requirements, setRequirements] = useState<TeamRequirement[]>([
     { type: 'human', count: 1, role: '' },
   ]);
@@ -60,6 +65,14 @@ const ProjectCreatePage = () => {
     '검수/검증',
     '기타',
   ];
+
+  const toggleCategory = (category: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category],
+    );
+  };
 
   const addRequirement = () => {
     setRequirements([...requirements, { type: 'human', count: 1, role: '' }]);
@@ -83,7 +96,7 @@ const ProjectCreatePage = () => {
 
     const payload = {
       name: title.trim(),
-      category: category || null,
+      category: serializeCategories(selectedCategories),
       budget: parseBudgetToNumber(budget),
       deadline: parseDeadlineToUnix(deadline),
       team_requirements: serializeTeamRequirements(requirements),
@@ -154,9 +167,10 @@ const ProjectCreatePage = () => {
                 {categories.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => setCategory(cat)}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                      category === cat
+                      selectedCategories.includes(cat)
                         ? 'bg-active text-active-text'
                         : 'bg-surface-2 text-text-sub border border-border hover:border-text-hint'
                     }`}
@@ -204,7 +218,7 @@ const ProjectCreatePage = () => {
           <div className="flex justify-end mt-6">
             <button
               onClick={() => setStep(2)}
-              disabled={!title || !category}
+              disabled={!title || selectedCategories.length === 0}
               className="btn-primary px-6 py-2.5 rounded-lg text-sm cursor-pointer"
             >
               다음
@@ -292,7 +306,7 @@ const ProjectCreatePage = () => {
           <div className="glass-card rounded-lg p-5 mb-4">
             <div className="flex flex-col gap-3">
               <SummaryRow label="제목" value={title} />
-              <SummaryRow label="카테고리" value={category} />
+              <SummaryRow label="카테고리" value={selectedCategories.join(', ')} />
               <SummaryRow label="예산" value={budget || '미정'} />
               <SummaryRow label="마감일" value={deadline || '미정'} />
               <SummaryRow label="팀 구성" value={`${requirements.length}명`} />
