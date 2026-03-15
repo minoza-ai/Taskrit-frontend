@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './lib/store';
 import { useEffect } from 'react';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -37,7 +38,8 @@ const App = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
