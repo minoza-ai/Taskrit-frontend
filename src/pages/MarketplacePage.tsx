@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PopupModal from '../components/PopupModal';
 
 interface MarketItem {
   id: string;
@@ -20,6 +21,7 @@ const MarketplacePage = () => {
   const [sellCategory, setSellCategory] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [sellDescription, setSellDescription] = useState('');
+  const [isSellSuccessOpen, setIsSellSuccessOpen] = useState(false);
 
   const categories = ['전체', '프롬프트', '워크플로우', '설계 프로세스', '데이터셋', 'API 템플릿'];
   const categoryKeys = ['all', 'prompt', 'workflow', 'process', 'dataset', 'template'];
@@ -34,7 +36,7 @@ const MarketplacePage = () => {
 
   const handleSellSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    alert('노하우 상품이 등록되었습니다! (백엔드 API 연동 예정)');
+    setIsSellSuccessOpen(true);
     setSellTitle('');
     setSellCategory('');
     setSellPrice('');
@@ -205,6 +207,16 @@ const MarketplacePage = () => {
           </button>
         </form>
       )}
+
+      <PopupModal
+        open={isSellSuccessOpen}
+        title="상품 등록 완료"
+        message="노하우 상품이 등록되었습니다! (백엔드 API 연동 예정)"
+        confirmText="확인"
+        variant="alert"
+        onClose={() => setIsSellSuccessOpen(false)}
+        onConfirm={() => setIsSellSuccessOpen(false)}
+      />
     </div>
   );
 };

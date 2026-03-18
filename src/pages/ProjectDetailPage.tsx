@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../lib/store';
 import { deleteProject, getProject, updateProject, type Project } from '../lib/api';
+import PopupModal from '../components/PopupModal';
 
 interface TeamMember {
   id: string;
@@ -29,6 +30,7 @@ const ProjectDetailPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Demo recommended team
@@ -181,8 +183,6 @@ const ProjectDetailPage = () => {
 
   const handleDelete = async () => {
     if (!accessToken || !id || isDeleting) return;
-    const ok = window.confirm('정말 이 프로젝트를 삭제하시겠습니까?');
-    if (!ok) return;
 
     setIsDeleting(true);
     setError(null);
@@ -210,6 +210,10 @@ const ProjectDetailPage = () => {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const requestDelete = () => {
+    setIsDeleteConfirmOpen(true);
   };
 
   const formatUnixTime = (unix: number): string => {
@@ -343,7 +347,7 @@ const ProjectDetailPage = () => {
                       {isSaving ? '저장 중...' : '수정 저장'}
                     </button>
                     <button
-                      onClick={handleDelete}
+                      onClick={requestDelete}
                       disabled={isDeleting}
                       className="btn-secondary py-2.5 px-4 rounded-lg text-sm text-error"
                     >
@@ -435,6 +439,22 @@ const ProjectDetailPage = () => {
           </button>
         </div>
       )}
+
+      <PopupModal
+        open={isDeleteConfirmOpen}
+        title="프로젝트 삭제"
+        message="정말 이 프로젝트를 삭제하시겠습니까?"
+        confirmText={isDeleting ? '삭제 중...' : '삭제'}
+        cancelText="취소"
+        variant="confirm"
+        destructive
+        busy={isDeleting}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={async () => {
+          await handleDelete();
+          setIsDeleteConfirmOpen(false);
+        }}
+      />
     </div>
   );
 };

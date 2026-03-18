@@ -177,11 +177,14 @@ export async function walletConnectConfirm(
   wallet_address: string,
   signature: string,
   nonce: string,
+  message?: string,
 ): Promise<{ message: string }> {
+  const body: Record<string, string> = { wallet_address, signature, nonce };
+  if (message) body.message = message;
   return request('/wallets/connect/confirm', {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ wallet_address, signature, nonce }),
+    body: JSON.stringify(body),
   });
 }
 
