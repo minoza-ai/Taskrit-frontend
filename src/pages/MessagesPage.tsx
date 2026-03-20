@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import {
   createDmRoom,
@@ -12,6 +13,7 @@ import {
 } from '../lib/api';
 
 const MessagesPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const tryRefresh = useAuthStore((s) => s.tryRefresh);
@@ -167,6 +169,20 @@ const MessagesPage = () => {
   useEffect(() => {
     loadRooms();
   }, [accessToken]);
+
+  useEffect(() => {
+    const targetRoomId = searchParams.get('room');
+    if (!targetRoomId) return;
+
+    setSelectedConversation(targetRoomId);
+    setMobileView('chat');
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('room');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (selectedConversation) {
