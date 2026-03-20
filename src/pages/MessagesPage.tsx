@@ -171,6 +171,18 @@ const MessagesPage = () => {
   }, [accessToken]);
 
   useEffect(() => {
+    const handleNewChatNotification = () => {
+      void loadRooms();
+    };
+
+    window.addEventListener('taskrit:new-chat-notification', handleNewChatNotification as EventListener);
+
+    return () => {
+      window.removeEventListener('taskrit:new-chat-notification', handleNewChatNotification as EventListener);
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
     const targetRoomId = searchParams.get('room');
     if (!targetRoomId) return;
 

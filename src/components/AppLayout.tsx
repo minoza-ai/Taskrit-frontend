@@ -167,10 +167,6 @@ const AppLayout = () => {
             return;
           }
 
-          if (location.pathname === '/messages') {
-            return;
-          }
-
           if (payload.message?.sender_uuid === user?.user_uuid) {
             return;
           }
@@ -186,6 +182,13 @@ const AppLayout = () => {
           }
 
           lastNotifiedMessageByRoomRef.current[roomId] = messageId;
+
+          window.dispatchEvent(new CustomEvent('taskrit:new-chat-notification', {
+            detail: {
+              roomId,
+              messageId,
+            },
+          }));
 
           setNotifications((prev) => [
             {
