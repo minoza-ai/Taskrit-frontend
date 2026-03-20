@@ -1,71 +1,196 @@
-import { useState } from 'react';
-
-interface Message {
-  id: string;
-  sender: string;
-  content: string;
-  time: string;
-  isMe: boolean;
-}
-
-interface Conversation {
-  id: string;
-  name: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-}
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '../lib/store';
+import {
+  createDmRoom,
+  listChatUsers,
+  listMyChatRooms,
+  listRoomMessages,
+  sendRoomMessage,
+  type ChatMessage,
+  type ChatRoom,
+} from '../lib/api';
 
 const MessagesPage = () => {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
+  const tryRefresh = useAuthStore((s) => s.tryRefresh);
+  const logout = useAuthStore((s) => s.logout);
+
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  const [targetUserId, setTargetUserId] = useState('');
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const conversations: Conversation[] = [
-    { id: '1', name: 'Alice K.', lastMessage: '디자인 시안 확인해주세요', time: '2분 전', unread: 2 },
-    { id: '2', name: 'Bob L.', lastMessage: '일정 조율 가능할까요?', time: '1시간 전', unread: 0 },
-    { id: '3', name: 'Charlie M.', lastMessage: '계약 조건 논의하실래요?', time: '어제', unread: 1 },
-  ];
+  const roomName = (room: ChatRoom): string => {
+    if (room.room_type === 'team') return room.room_name;
+    return room.room_name || '1:1 채팅';
+  };
 
-  const messages: Message[] = selectedConversation
-    ? [
-        { id: '1', sender: 'Alice K.', content: '안녕하세요! 프로젝트 관련 논의 드립니다.', time: '14:20', isMe: false },
-        { id: '2', sender: 'Me', content: '네, 안녕하세요. 궁금한 점이 있으시면 말씀하세요.', time: '14:21', isMe: true },
-        { id: '3', sender: 'Alice K.', content: '디자인 시안 확인해주세요', time: '14:25', isMe: false },
-      ]
-    : [];
+  const loadRooms = async () => {
+    if (!accessToken) return;
+    setLoadingRooms(true);
+    setError(null);
+    try {
+      const data = await listMyChatRooms(accessToken);
+      setRooms(data);
+      if (!selectedConversation && data.length > 0) {
+        setSelectedConversation(data[0].room_id);
+      }
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+      }
+      setError(err.message || '채팅방 목록을 불러오지 못했습니다.');
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
 
-  const handleSend = () => {
-    if (!newMessage.trim()) return;
+  const loadMessages = async (roomId: string) => {
+    if (!accessToken) return;
+    setLoadingMessages(true);
+    setError(null);
+    try {
+      const data = await listRoomMessages(accessToken, roomId);
+      setMessages(data);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+      }
+      setError(err.message || '메시지를 불러오지 못했습니다.');
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRooms();
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (selectedConversation) {
+      loadMessages(selectedConversation);
+    }
+  }, [selectedConversation, accessToken]);
+
+  const handleSend = async () => {
+    if (!newMessage.trim() || !selectedConversation || !accessToken) return;
+    const text = newMessage.trim();
     setNewMessage('');
+
+    try {
+      const sent = await sendRoomMessage(accessToken, selectedConversation, text);
+      setMessages((prev) => [...prev, sent]);
+      await loadRooms();
+    } catch (err: any) {
+      setError(err.message || '메시지 전송에 실패했습니다.');
+    }
+  };
+
+  const handleCreateDmByUserId = async () => {
+    if (!accessToken) return;
+
+    const inputUserId = targetUserId.trim().toLowerCase();
+    if (!inputUserId) {
+      setError('상대방 아이디를 입력해주세요.');
+      return;
+    }
+
+    if (inputUserId === user?.user_id?.toLowerCase()) {
+      setError('본인 아이디로는 채팅방을 만들 수 없습니다.');
+      return;
+    }
+
+    setCreatingRoom(true);
+    setError(null);
+
+    try {
+      const users = await listChatUsers(accessToken);
+      const target = users.find((u) => u.user_id.toLowerCase() === inputUserId);
+
+      if (!target) {
+        setError('해당 아이디의 사용자를 찾을 수 없습니다.');
+        return;
+      }
+
+      const room = await createDmRoom(accessToken, target.user_uuid, `${target.nickname}님과의 대화`);
+      setTargetUserId('');
+      await loadRooms();
+      setSelectedConversation(room.room_id);
+      await loadMessages(room.room_id);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+      }
+      setError(err.message || '채팅방 생성에 실패했습니다.');
+    } finally {
+      setCreatingRoom(false);
+    }
   };
 
   return (
     <div className="animate-in h-[calc(100vh-12rem)]">
       <h1 className="text-2xl font-bold mb-6">메시지</h1>
+      {error && <p className="mb-3 text-sm text-error">{error}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100%-3rem)]">
         {/* Conversation List */}
         <div className="glass-card rounded-xl p-3 overflow-y-auto">
+          <div className="mb-3 flex gap-2">
+            <input
+              type="text"
+              value={targetUserId}
+              onChange={(e) => setTargetUserId(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateDmByUserId()}
+              placeholder="상대방 아이디 입력"
+              className="glass-input flex-1 py-2 px-3 rounded-md text-sm"
+            />
+            <button
+              onClick={handleCreateDmByUserId}
+              disabled={creatingRoom}
+              className="btn-primary px-3 py-2 rounded-md text-sm disabled:opacity-60"
+            >
+              {creatingRoom ? '생성중' : '시작'}
+            </button>
+          </div>
+
           <div className="flex flex-col gap-1">
-            {conversations.map((conv) => (
+            {rooms.map((conv) => (
               <button
-                key={conv.id}
-                onClick={() => setSelectedConversation(conv.id)}
+                key={conv.room_id}
+                onClick={() => setSelectedConversation(conv.room_id)}
                 className={`w-full text-left p-3 rounded-lg transition-all cursor-pointer ${
-                  selectedConversation === conv.id
+                  selectedConversation === conv.room_id
                     ? 'bg-surface-2 border border-border'
                     : 'hover:bg-surface-2/50'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm">{conv.name}</span>
-                  <span className="text-[10px] text-text-hint">{conv.time}</span>
+                  <span className="font-medium text-sm">{roomName(conv)}</span>
+                  <span className="text-[10px] text-text-hint">{conv.last_message_time || ''}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-sub truncate flex-1">{conv.lastMessage}</span>
-                  {conv.unread > 0 && (
+                  <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
+                  {(conv.unread_count || 0) > 0 && (
                     <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-                      {conv.unread}
+                      {conv.unread_count}
                     </span>
                   )}
                 </div>
@@ -73,7 +198,8 @@ const MessagesPage = () => {
             ))}
           </div>
 
-          {conversations.length === 0 && (
+          {loadingRooms && <div className="text-center py-8 text-text-hint text-sm">불러오는 중...</div>}
+          {!loadingRooms && rooms.length === 0 && (
             <div className="text-center py-12 text-text-hint text-sm">
               대화가 없습니다
             </div>
@@ -87,31 +213,35 @@ const MessagesPage = () => {
               {/* Header */}
               <div className="p-4 border-b border-border">
                 <span className="font-semibold text-sm">
-                  {conversations.find((c) => c.id === selectedConversation)?.name}
+                  {(() => {
+                    const selectedRoom = rooms.find((c) => c.room_id === selectedConversation);
+                    return selectedRoom ? roomName(selectedRoom) : '채팅';
+                  })()}
                 </span>
               </div>
 
               {/* Messages */}
               <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
+                {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
                 {messages.map((msg) => (
                   <div
-                    key={msg.id}
-                    className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}
+                    key={msg.message_id}
+                    className={`flex ${msg.sender_uuid === user?.user_uuid ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
                       className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
-                        msg.isMe
+                        msg.sender_uuid === user?.user_uuid
                           ? 'bg-active text-active-text rounded-br-md'
                           : 'bg-surface-2 text-text rounded-bl-md'
                       }`}
                     >
-                      {msg.content}
+                      {msg.text}
                       <div
                         className={`text-[10px] mt-1 ${
-                          msg.isMe ? 'text-active-text/70' : 'text-text-hint'
+                          msg.sender_uuid === user?.user_uuid ? 'text-active-text/70' : 'text-text-hint'
                         }`}
                       >
-                        {msg.time}
+                        {msg.created_at}
                       </div>
                     </div>
                   </div>

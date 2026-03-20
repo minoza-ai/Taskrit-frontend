@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const CHAT_API_BASE = import.meta.env.VITE_CHAT_API_BASE || '/chat-api';
 
 function translateError(message: string): string {
   const errorMap: Record<string, string> = {
@@ -43,6 +44,51 @@ async function request<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Unknown error' }));
     const errorMessage = translateError(body.error || `Request failed: ${res.status}`);
+    const err = new Error(errorMessage);
+    (err as any).status = res.status;
+    (err as any).body = body;
+    throw err;
+  }
+
+  if (res.status === 204) return {} as T;
+  return res.json();
+}
+
+async function chatRequest<T>(
+  path: string,
+  token: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = `${CHAT_API_BASE}${path}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch {
+    throw new Error('채팅 서버에 연결할 수 없습니다. 서버 주소/포트와 실행 상태를 확인해주세요.');
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(async () => {
+      const text = await res.text().catch(() => '');
+      return { detail: text || 'Unknown error' };
+    });
+    const raw = body.detail || body.error || `Request failed: ${res.status}`;
+    const normalizedRaw = typeof raw === 'string' ? raw : JSON.stringify(raw);
+
+    if (
+      res.status >= 500
+      && /ECONNREFUSED|proxy error|connect to server|connect ECONNREFUSED/i.test(normalizedRaw)
+    ) {
+      throw new Error('채팅 서버에 연결할 수 없습니다. 백엔드가 실행 중인지, VITE_CHAT_API_TARGET 설정이 맞는지 확인해주세요.');
+    }
+
+    const errorMessage = translateError(raw);
     const err = new Error(errorMessage);
     (err as any).status = res.status;
     (err as any).body = body;
@@ -275,4 +321,74 @@ export async function deleteProject(token: string, project_uuid: string): Promis
 
 export async function healthCheck(): Promise<{ status: string }> {
   return request('/health');
+}
+
+/* ====== Chat ====== */
+
+export interface ChatRoom {
+  room_id: string;
+  room_type: 'dm' | 'team';
+  room_name: string;
+  members: string[];
+  created_at: string;
+  created_by: string;
+  unread_count?: number;
+  last_message_time?: string | null;
+  last_message?: {
+    message_id: string;
+    text: string;
+    message_type: string;
+    sender_uuid: string;
+    seq: number;
+  } | null;
+}
+
+export interface ChatUser {
+  user_uuid: string;
+  user_id: string;
+  nickname: string;
+}
+
+export interface ChatMessage {
+  message_id: string;
+  room_id: string;
+  seq: number;
+  sender_uuid: string;
+  text: string;
+  message_type: string;
+  is_deleted: boolean;
+  file_name?: string | null;
+  saved_filename?: string | null;
+  file_url?: string | null;
+  created_at: string;
+}
+
+export async function listMyChatRooms(token: string): Promise<ChatRoom[]> {
+  return chatRequest('/users/me/rooms', token);
+}
+
+export async function listChatUsers(token: string): Promise<ChatUser[]> {
+  return chatRequest('/users', token);
+}
+
+export async function createDmRoom(
+  token: string,
+  target_user_uuid: string,
+  room_name: string,
+): Promise<ChatRoom> {
+  return chatRequest('/dm/rooms', token, {
+    method: 'POST',
+    body: JSON.stringify({ target_user_uuid, room_name }),
+  });
+}
+
+export async function listRoomMessages(token: string, roomId: string): Promise<ChatMessage[]> {
+  return chatRequest(`/rooms/${roomId}/messages`, token);
+}
+
+export async function sendRoomMessage(token: string, roomId: string, text: string): Promise<ChatMessage> {
+  return chatRequest(`/rooms/${roomId}/messages`, token, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
 }
