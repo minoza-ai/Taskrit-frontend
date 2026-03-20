@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../lib/store';
 import {
   createDmRoom,
@@ -31,9 +31,12 @@ const MessagesPage = () => {
   const [isComposingMessage, setIsComposingMessage] = useState(false);
   const [isComposingTargetUserId, setIsComposingTargetUserId] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [showNewMessageNotice, setShowNewMessageNotice] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const messageViewportRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollOnNextMessageRef = useRef(false);
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -63,6 +66,35 @@ const MessagesPage = () => {
   };
 
   const selectedRoom = rooms.find((c) => c.room_id === selectedConversation) || null;
+
+  const isNearMessageBottom = () => {
+    const viewport = messageViewportRef.current;
+    if (!viewport) return true;
+
+    const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    return remaining <= 56;
+  };
+
+  const scrollMessagesToBottom = (behavior: ScrollBehavior = 'auto') => {
+    const viewport = messageViewportRef.current;
+    if (!viewport) return;
+
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+    setShowNewMessageNotice(false);
+  };
+
+  const handleMessageScroll = () => {
+    if (isNearMessageBottom()) {
+      setShowNewMessageNotice(false);
+    }
+  };
+
+  useLayoutEffect(() => {
+    if (!shouldAutoScrollOnNextMessageRef.current) return;
+
+    scrollMessagesToBottom('smooth');
+    shouldAutoScrollOnNextMessageRef.current = false;
+  }, [messages]);
 
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
@@ -115,6 +147,9 @@ const MessagesPage = () => {
     try {
       const data = await listRoomMessages(accessToken, roomId);
       setMessages(data);
+      requestAnimationFrame(() => {
+        scrollMessagesToBottom('auto');
+      });
     } catch (err: any) {
       if (err.status === 401) {
         const refreshed = await tryRefresh();
@@ -184,9 +219,15 @@ const MessagesPage = () => {
 
           if (payload.type === 'message' && payload.data) {
             const incoming = payload.data as ChatMessage;
+            const wasNearBottom = isNearMessageBottom();
 
             if (incoming.room_id === selectedConversation) {
+              shouldAutoScrollOnNextMessageRef.current = incoming.sender_uuid === user?.user_uuid || wasNearBottom;
               appendMessageDedup(incoming);
+
+              if (!shouldAutoScrollOnNextMessageRef.current) {
+                setShowNewMessageNotice(true);
+              }
             }
 
             void loadRooms();
@@ -217,7 +258,7 @@ const MessagesPage = () => {
       disposed = true;
       clearSocketResources();
     };
-  }, [accessToken, selectedConversation]);
+  }, [accessToken, selectedConversation, user?.user_uuid]);
 
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedConversation || !accessToken) return;
@@ -227,6 +268,9 @@ const MessagesPage = () => {
     try {
       const sent = await sendRoomMessage(accessToken, selectedConversation, text);
       appendMessageDedup(sent);
+      requestAnimationFrame(() => {
+        scrollMessagesToBottom('smooth');
+      });
       await loadRooms();
     } catch (err: any) {
       setError(err.message || '메시지 전송에 실패했습니다.');
@@ -304,7 +348,7 @@ const MessagesPage = () => {
   };
 
   return (
-    <div className="animate-in min-h-[calc(100dvh-8rem)] md:min-h-[calc(100dvh-9rem)] flex flex-col">
+    <div className="animate-in h-[calc(100dvh-8.5rem)] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden">
       <h1 className="text-2xl font-bold mb-4 md:mb-6">메시지</h1>
       {error && <p className="mb-3 text-sm text-error">{error}</p>}
 
@@ -393,7 +437,12 @@ const MessagesPage = () => {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 p-3 md:p-4 overflow-y-auto flex flex-col gap-3 min-h-0">
+              <div className="relative flex-1 min-h-0">
+                <div
+                  ref={messageViewportRef}
+                  onScroll={handleMessageScroll}
+                  className="h-full p-3 md:p-4 overflow-y-auto flex flex-col gap-3"
+                >
                 {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
                 {messages.map((msg) => (
                   <div
@@ -418,6 +467,17 @@ const MessagesPage = () => {
                     </div>
                   </div>
                 ))}
+                </div>
+
+                {showNewMessageNotice && (
+                  <button
+                    onClick={() => scrollMessagesToBottom('smooth')}
+                    className="absolute right-3 bottom-3 btn-primary px-3 py-2 rounded-full text-xs shadow-lg flex items-center gap-1.5"
+                  >
+                    <span aria-hidden="true">●</span>
+                    <span>새 메시지</span>
+                  </button>
+                )}
               </div>
 
               {/* Input */}
