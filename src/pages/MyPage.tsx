@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { getAddress } from 'ethers';
 import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 import PopupModal from '../components/PopupModal';
 
-const normalizeEthAddress = (address: string): string => {
-  try {
-    return getAddress(address.trim());
-  } catch {
-    // Fallback if address is invalid
-    return address.trim().toLowerCase();
+const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
   }
+  return btoa(binary);
 };
 
 const MyPage = () => {
@@ -31,7 +29,6 @@ const MyPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Wallet states
-  const [walletAddress, setWalletAddress] = useState('');
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
@@ -76,47 +73,36 @@ const MyPage = () => {
   };
 
   const handleConnectWallet = async () => {
-    if (!accessToken || !walletAddress) return;
+    if (!accessToken) return;
     setWalletBusy(true);
     setWalletError(null);
     setWalletStatus(null);
     try {
-      // Step 1: Request nonce
-      const { nonce, message } = await api.walletConnectRequest(walletAddress);
-
-      // Step 2: Request signature from EVM wallet provider
-      if (!window.ethereum) {
-        setWalletError('이더리움 지갑 확장 프로그램을 찾을 수 없습니다');
+      if (!window.solana?.isPhantom) {
+        setWalletError('Phantom 지갑 확장 프로그램을 찾을 수 없습니다. 설치 후 Solana Devnet으로 연결해주세요.');
         setWalletBusy(false);
         return;
       }
 
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-      const account = accounts[0];
+      const connectResult = await window.solana.connect();
+      const walletAddress = connectResult.publicKey?.toString() || window.solana.publicKey?.toString();
 
-      if (!account) {
+      if (!walletAddress) {
         setWalletError('지갑 계정을 확인할 수 없습니다');
         setWalletBusy(false);
         return;
       }
 
-      if (normalizeEthAddress(account) !== normalizeEthAddress(walletAddress)) {
-        setWalletError('입력한 주소와 지갑에서 서명한 주소가 일치하지 않습니다. 지갑의 이더리움 계정 주소를 입력해주세요.');
-        setWalletBusy(false);
-        return;
-      }
+      // Step 1: Request nonce
+      const { nonce, message } = await api.walletConnectRequest(walletAddress);
 
-      const signMessage = `${message}\nNonce: ${nonce}`;
-      const signature = await window.ethereum.request({
-        method: 'personal_sign',
-        params: [signMessage, account],
-      });
+      const encodedMessage = new TextEncoder().encode(message);
+      const signed = await window.solana.signMessage(encodedMessage, 'utf8');
+      const signature = uint8ArrayToBase64(signed.signature);
 
       // Step 3: Confirm
       try {
-        await api.walletConnectConfirm(accessToken, walletAddress, signature, nonce, message);
+        await api.walletConnectConfirm(accessToken, walletAddress, signature, nonce, message, 'base64');
       } catch (err: any) {
         if (err.status !== 401) throw err;
 
@@ -132,11 +118,10 @@ const MyPage = () => {
           throw err;
         }
 
-        await api.walletConnectConfirm(refreshedToken, walletAddress, signature, nonce, message);
+        await api.walletConnectConfirm(refreshedToken, walletAddress, signature, nonce, message, 'base64');
       }
 
       setWalletStatus('지갑이 연동되었습니다');
-      setWalletAddress('');
       await fetchUser();
     } catch (err: any) {
       setWalletError(err.message || '지갑 연동에 실패했습니다');
@@ -306,23 +291,14 @@ const MyPage = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-text-sub">원하는 지갑 서비스에서 사용하는 이더리움 주소를 입력해 연동하세요.</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={walletAddress}
-                onChange={(e) => setWalletAddress(e.target.value)}
-                placeholder="0x..."
-                className="glass-input flex-1 px-3.5 py-2.5 rounded-md text-sm font-sans font-mono"
-              />
-              <button
-                onClick={handleConnectWallet}
-                disabled={walletBusy || !walletAddress}
-                className="btn-primary px-4 py-2.5 rounded-lg text-sm cursor-pointer whitespace-nowrap"
-              >
-                {walletBusy ? '연동 중...' : '연동'}
-              </button>
-            </div>
+            <p className="text-sm text-text-sub">Phantom 지갑으로 서명해 Solana Devnet 주소를 연동하세요.</p>
+            <button
+              onClick={handleConnectWallet}
+              disabled={walletBusy}
+              className="btn-primary px-4 py-2.5 rounded-lg text-sm cursor-pointer whitespace-nowrap self-start"
+            >
+              {walletBusy ? '연동 중...' : 'Phantom으로 연동'}
+            </button>
           </div>
         )}
 
@@ -397,11 +373,19 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => {
 
 export default MyPage;
 
-// Extend window for ethereum provider
+// Extend window for Phantom provider
 declare global {
+  interface SolanaProvider {
+    isPhantom?: boolean;
+    publicKey?: { toString(): string };
+    connect: () => Promise<{ publicKey: { toString(): string } }>;
+    signMessage: (
+      message: Uint8Array,
+      display?: 'utf8' | 'hex',
+    ) => Promise<{ signature: Uint8Array }>;
+  }
+
   interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<any>;
-    };
+    solana?: SolanaProvider;
   }
 }

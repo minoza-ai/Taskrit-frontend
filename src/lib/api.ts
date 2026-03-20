@@ -178,9 +178,11 @@ export async function walletConnectConfirm(
   signature: string,
   nonce: string,
   message?: string,
+  signature_encoding?: 'base58' | 'base64' | 'hex',
 ): Promise<{ message: string }> {
   const body: Record<string, string> = { wallet_address, signature, nonce };
   if (message) body.message = message;
+  if (signature_encoding) body.signature_encoding = signature_encoding;
   return request('/wallets/connect/confirm', {
     method: 'POST',
     headers: authHeaders(token),

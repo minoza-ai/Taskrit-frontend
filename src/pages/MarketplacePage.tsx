@@ -175,7 +175,7 @@ const MarketplacePage = () => {
                   type="text"
                   value={sellPrice}
                   onChange={(e) => setSellPrice(e.target.value)}
-                  placeholder="예: 10,000원 또는 0.01 ETH"
+                  placeholder="예: 10,000원 또는 0.1 SOL"
                   className="glass-input px-3.5 py-3 rounded-md text-sm font-sans"
                 />
               </div>
