@@ -30,6 +30,7 @@ const MessagesPage = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const [isComposingMessage, setIsComposingMessage] = useState(false);
   const [isComposingTargetUserId, setIsComposingTargetUserId] = useState(false);
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -60,6 +61,8 @@ const MessagesPage = () => {
 
     setWsConnected(false);
   };
+
+  const selectedRoom = rooms.find((c) => c.room_id === selectedConversation) || null;
 
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
@@ -272,6 +275,7 @@ const MessagesPage = () => {
       setTargetUserId('');
       await loadRooms();
       setSelectedConversation(room.room_id);
+      setMobileView('chat');
       await loadMessages(room.room_id);
     } catch (err: any) {
       if (err.status === 401) {
@@ -300,13 +304,13 @@ const MessagesPage = () => {
   };
 
   return (
-    <div className="animate-in h-[calc(100vh-12rem)]">
-      <h1 className="text-2xl font-bold mb-6">메시지</h1>
+    <div className="animate-in min-h-[calc(100dvh-8rem)] md:min-h-[calc(100dvh-9rem)] flex flex-col">
+      <h1 className="text-2xl font-bold mb-4 md:mb-6">메시지</h1>
       {error && <p className="mb-3 text-sm text-error">{error}</p>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100%-3rem)]">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0">
         {/* Conversation List */}
-        <div className="glass-card rounded-xl p-3 overflow-y-auto">
+        <div className={`glass-card rounded-xl p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>
           <div className="mb-3 flex gap-2">
             <input
               type="text"
@@ -331,7 +335,10 @@ const MessagesPage = () => {
             {rooms.map((conv) => (
               <button
                 key={conv.room_id}
-                onClick={() => setSelectedConversation(conv.room_id)}
+                onClick={() => {
+                  setSelectedConversation(conv.room_id);
+                  setMobileView('chat');
+                }}
                 className={`w-full text-left p-3 rounded-lg transition-all cursor-pointer ${
                   selectedConversation === conv.room_id
                     ? 'bg-surface-2 border border-border'
@@ -363,24 +370,30 @@ const MessagesPage = () => {
         </div>
 
         {/* Chat Area */}
-        <div className="md:col-span-2 glass-card rounded-xl flex flex-col">
+        <div className={`md:col-span-2 glass-card rounded-xl flex flex-col min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
           {selectedConversation ? (
             <>
               {/* Header */}
-              <div className="p-4 border-b border-border">
-                <span className="font-semibold text-sm">
-                  {(() => {
-                    const selectedRoom = rooms.find((c) => c.room_id === selectedConversation);
-                    return selectedRoom ? roomName(selectedRoom) : '채팅';
-                  })()}
-                </span>
-                <span className={`ml-3 text-xs ${wsConnected ? 'text-green-600' : 'text-text-hint'}`}>
+              <div className="p-3 md:p-4 border-b border-border flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    onClick={() => setMobileView('list')}
+                    className="md:hidden btn-ghost px-2 py-1 rounded-md text-sm"
+                    aria-label="채팅방 목록으로 돌아가기"
+                  >
+                    뒤로
+                  </button>
+                  <span className="font-semibold text-sm truncate">
+                    {selectedRoom ? roomName(selectedRoom) : '채팅'}
+                  </span>
+                </div>
+                <span className={`text-xs shrink-0 ${wsConnected ? 'text-green-600' : 'text-text-hint'}`}>
                   {wsConnected ? '실시간 연결됨' : '재연결 중'}
                 </span>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
+              <div className="flex-1 p-3 md:p-4 overflow-y-auto flex flex-col gap-3 min-h-0">
                 {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
                 {messages.map((msg) => (
                   <div

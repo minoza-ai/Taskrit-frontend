@@ -77,8 +77,8 @@ const AppLayout = () => {
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
       <header className="fixed top-0 left-0 right-0 z-40 border-b border-border-light bg-bg/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 md:px-5 h-14 md:h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <button
               onClick={() => navigate('/dashboard')}
               className="font-display font-black text-lg tracking-tight text-text cursor-pointer"
@@ -86,21 +86,40 @@ const AppLayout = () => {
               Taskrit
             </button>
             {user && (
-              <span className="text-xs text-text-hint font-normal">{user.nickname}</span>
+              <span className="text-xs text-text-hint font-normal truncate max-w-24 md:max-w-none">{user.nickname}</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+
+          <nav className="hidden md:flex items-center gap-1 rounded-xl border border-border bg-surface/70 px-2 py-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-active text-active-text'
+                      : 'text-text-sub hover:text-text hover:bg-hover'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
             <button
               onClick={cycleTheme}
               title={`테마: ${themeLabel}`}
-              className="text-xs px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all flex items-center gap-1.5"
+              className="text-xs px-2.5 md:px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all flex items-center gap-1 md:gap-1.5"
             >
               <span>{themeIcon}</span>
-              <span>{themeLabel}</span>
+              <span className="hidden md:inline">{themeLabel}</span>
             </button>
             <button
               onClick={() => navigate('/membership')}
-              className="text-xs px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all"
+              className="text-xs px-2.5 md:px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all"
             >
               멤버십
             </button>
@@ -118,29 +137,29 @@ const AppLayout = () => {
       </header>
 
       {/* Content */}
-      <main className="flex-1 pt-14 pb-24">
-        <div className="max-w-6xl mx-auto px-5 py-6">
+      <main className="flex-1 pt-14 md:pt-16 pb-20 md:pb-8">
+        <div className="max-w-6xl mx-auto px-4 md:px-5 py-4 md:py-6">
           <Outlet />
         </div>
       </main>
 
-      {/* Bottom navigation - pill style */}
-      <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
-        <div className="flex gap-1.5 bg-surface-2 rounded-full p-1.5 shadow-[0_4px_24px_rgba(0,0,0,0.4)] [[data-theme=light]_&]:shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-border">
+      {/* Mobile bottom navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 backdrop-blur-xl pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 px-2">
+        <div className="grid grid-cols-5 gap-1 max-w-xl mx-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
+                `h-14 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${
                   isActive
-                    ? 'bg-active text-active-text shadow-md'
+                    ? 'bg-active text-active-text'
                     : 'text-text-hint hover:text-text-sub hover:bg-hover'
                 }`
               }
-              title={item.label}
             >
               <item.icon />
+              <span className="text-[10px] font-medium">{item.label}</span>
             </NavLink>
           ))}
         </div>
