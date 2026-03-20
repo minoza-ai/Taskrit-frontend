@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../lib/store';
 import {
   createDmRoom,
@@ -27,6 +27,37 @@ const MessagesPage = () => {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+
+  const appendMessageDedup = (incoming: ChatMessage) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.message_id === incoming.message_id)) {
+        return prev;
+      }
+      return [...prev, incoming].sort((a, b) => a.seq - b.seq);
+    });
+  };
+
+  const clearSocketResources = () => {
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    if (wsRef.current) {
+      wsRef.current.onopen = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    setWsConnected(false);
+  };
 
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
@@ -102,6 +133,86 @@ const MessagesPage = () => {
       loadMessages(selectedConversation);
     }
   }, [selectedConversation, accessToken]);
+
+  useEffect(() => {
+    if (!accessToken || !selectedConversation) {
+      clearSocketResources();
+      return;
+    }
+
+    const wsBase = import.meta.env.VITE_CHAT_WS_BASE
+      || `${import.meta.env.VITE_CHAT_WS_TARGET || 'ws://localhost:8000'}/ws`;
+    const lastMessageId = messages.length > 0 ? messages[messages.length - 1].message_id : null;
+
+    const toWsUrl = () => {
+      const query = new URLSearchParams({ token: accessToken });
+      if (lastMessageId) {
+        query.set('last_message_id', lastMessageId);
+      }
+
+      if (wsBase.startsWith('ws://') || wsBase.startsWith('wss://')) {
+        return `${wsBase}/rooms/${selectedConversation}?${query.toString()}`;
+      }
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${wsProtocol}://${window.location.host}${wsBase}/rooms/${selectedConversation}?${query.toString()}`;
+    };
+
+    let disposed = false;
+
+    const connect = () => {
+      if (disposed) return;
+
+      const socket = new WebSocket(toWsUrl());
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        if (disposed) return;
+        setWsConnected(true);
+      };
+
+      socket.onmessage = (event) => {
+        if (disposed) return;
+
+        try {
+          const payload = JSON.parse(event.data);
+
+          if (payload.type === 'message' && payload.data) {
+            const incoming = payload.data as ChatMessage;
+
+            if (incoming.room_id === selectedConversation) {
+              appendMessageDedup(incoming);
+            }
+
+            void loadRooms();
+          }
+        } catch {
+          // Ignore malformed websocket payloads.
+        }
+      };
+
+      socket.onerror = () => {
+        if (disposed) return;
+        setWsConnected(false);
+      };
+
+      socket.onclose = () => {
+        if (disposed) return;
+        setWsConnected(false);
+
+        reconnectTimerRef.current = window.setTimeout(() => {
+          connect();
+        }, 2000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      clearSocketResources();
+    };
+  }, [accessToken, selectedConversation]);
 
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedConversation || !accessToken) return;
@@ -234,6 +345,9 @@ const MessagesPage = () => {
                     const selectedRoom = rooms.find((c) => c.room_id === selectedConversation);
                     return selectedRoom ? roomName(selectedRoom) : '채팅';
                   })()}
+                </span>
+                <span className={`ml-3 text-xs ${wsConnected ? 'text-green-600' : 'text-text-hint'}`}>
+                  {wsConnected ? '실시간 연결됨' : '재연결 중'}
                 </span>
               </div>
 
