@@ -8,6 +8,7 @@ import {
   sendRoomMessage,
   type ChatMessage,
   type ChatRoom,
+  type ChatUser,
 } from '../lib/api';
 
 const MessagesPage = () => {
@@ -17,6 +18,7 @@ const MessagesPage = () => {
   const logout = useAuthStore((s) => s.logout);
 
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -28,7 +30,17 @@ const MessagesPage = () => {
 
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
-    return room.room_name || '1:1 채팅';
+
+    const myUuid = user?.user_uuid;
+    if (!myUuid) return room.room_name || '1:1 채팅';
+
+    const otherUuid = room.members.find((memberUuid) => memberUuid !== myUuid);
+    if (!otherUuid) return room.room_name || '1:1 채팅';
+
+    const otherUser = chatUsers.find((u) => u.user_uuid === otherUuid);
+    if (!otherUser) return room.room_name || '1:1 채팅';
+
+    return otherUser.nickname;
   };
 
   const loadRooms = async () => {
@@ -36,10 +48,15 @@ const MessagesPage = () => {
     setLoadingRooms(true);
     setError(null);
     try {
-      const data = await listMyChatRooms(accessToken);
-      setRooms(data);
-      if (!selectedConversation && data.length > 0) {
-        setSelectedConversation(data[0].room_id);
+      const [roomData, userData] = await Promise.all([
+        listMyChatRooms(accessToken),
+        listChatUsers(accessToken),
+      ]);
+
+      setRooms(roomData);
+      setChatUsers(userData);
+      if (!selectedConversation && roomData.length > 0) {
+        setSelectedConversation(roomData[0].room_id);
       }
     } catch (err: any) {
       if (err.status === 401) {
