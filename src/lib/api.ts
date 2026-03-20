@@ -76,6 +76,11 @@ async function chatRequest<T>(
   if (!res.ok) {
     const body = await res.json().catch(async () => {
       const text = await res.text().catch(() => '');
+      if (/^\s*<!doctype html>/i.test(text)) {
+        return {
+          detail: '채팅 API 경로가 프론트 HTML로 라우팅되고 있습니다. VITE_CHAT_API_BASE 또는 프록시 설정을 확인해주세요.',
+        };
+      }
       return { detail: text || 'Unknown error' };
     });
     const raw = body.detail || body.error || `Request failed: ${res.status}`;

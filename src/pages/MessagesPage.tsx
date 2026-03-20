@@ -196,8 +196,26 @@ const MessagesPage = () => {
       return;
     }
 
-    const wsBase = import.meta.env.VITE_CHAT_WS_BASE
-      || `${import.meta.env.VITE_CHAT_WS_TARGET || 'ws://localhost:3001'}/ws`;
+    const resolvedWsBase = () => {
+      if (import.meta.env.VITE_CHAT_WS_BASE) {
+        return import.meta.env.VITE_CHAT_WS_BASE as string;
+      }
+
+      if (import.meta.env.VITE_CHAT_WS_TARGET) {
+        return `${import.meta.env.VITE_CHAT_WS_TARGET as string}/ws`;
+      }
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+      if (isLocalhost) {
+        return 'ws://localhost:3001/ws';
+      }
+
+      return `${wsProtocol}://${window.location.host}/chat-ws`;
+    };
+
+    const wsBase = resolvedWsBase();
     const lastMessageId = messages.length > 0 ? messages[messages.length - 1].message_id : null;
 
     const toWsUrl = () => {
