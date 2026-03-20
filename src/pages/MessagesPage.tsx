@@ -29,6 +29,7 @@ const MessagesPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [isComposingMessage, setIsComposingMessage] = useState(false);
+  const [isComposingTargetUserId, setIsComposingTargetUserId] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -286,6 +287,18 @@ const MessagesPage = () => {
     }
   };
 
+  const handleTargetUserIdKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+
+    // 한글 IME 조합 중 Enter는 글자 확정 용도이므로 제출을 막는다.
+    if (isComposingTargetUserId || e.nativeEvent.isComposing) {
+      return;
+    }
+
+    e.preventDefault();
+    void handleCreateDmByUserId();
+  };
+
   return (
     <div className="animate-in h-[calc(100vh-12rem)]">
       <h1 className="text-2xl font-bold mb-6">메시지</h1>
@@ -299,7 +312,9 @@ const MessagesPage = () => {
               type="text"
               value={targetUserId}
               onChange={(e) => setTargetUserId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateDmByUserId()}
+              onCompositionStart={() => setIsComposingTargetUserId(true)}
+              onCompositionEnd={() => setIsComposingTargetUserId(false)}
+              onKeyDown={handleTargetUserIdKeyDown}
               placeholder="상대방 아이디 입력"
               className="glass-input flex-1 py-2 px-3 rounded-md text-sm"
             />
