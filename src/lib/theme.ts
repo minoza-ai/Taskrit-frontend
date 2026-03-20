@@ -12,7 +12,26 @@ function getSystemTheme(): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+const THEME_TRANSITION_MS = 240;
+let themeTransitionTimer: number | undefined;
+
+function runThemeTransition() {
+  const root = document.documentElement;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return;
+  }
+
+  root.classList.add('theme-transition');
+  if (themeTransitionTimer) {
+    window.clearTimeout(themeTransitionTimer);
+  }
+  themeTransitionTimer = window.setTimeout(() => {
+    root.classList.remove('theme-transition');
+  }, THEME_TRANSITION_MS);
+}
+
 function applyTheme(theme: 'dark' | 'light') {
+  runThemeTransition();
   document.documentElement.setAttribute('data-theme', theme);
 }
 
