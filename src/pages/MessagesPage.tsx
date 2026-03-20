@@ -28,6 +28,7 @@ const MessagesPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [isComposingMessage, setIsComposingMessage] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -228,6 +229,18 @@ const MessagesPage = () => {
     }
   };
 
+  const handleMessageInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+
+    // 한글 IME 조합 중 Enter는 글자 확정 용도로만 사용하고 전송을 막는다.
+    if (isComposingMessage || e.nativeEvent.isComposing) {
+      return;
+    }
+
+    e.preventDefault();
+    void handleSend();
+  };
+
   const handleCreateDmByUserId = async () => {
     if (!accessToken) return;
 
@@ -386,7 +399,9 @@ const MessagesPage = () => {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    onCompositionStart={() => setIsComposingMessage(true)}
+                    onCompositionEnd={() => setIsComposingMessage(false)}
+                    onKeyDown={handleMessageInputKeyDown}
                     placeholder="메시지를 입력하세요..."
                     className="glass-input flex-1 py-2.5 px-4 rounded-full text-sm"
                   />
