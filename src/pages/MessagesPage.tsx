@@ -197,7 +197,7 @@ const MessagesPage = () => {
     }
 
     const wsBase = import.meta.env.VITE_CHAT_WS_BASE
-      || `${import.meta.env.VITE_CHAT_WS_TARGET || 'ws://localhost:8000'}/ws`;
+      || `${import.meta.env.VITE_CHAT_WS_TARGET || 'ws://localhost:3001'}/ws`;
     const lastMessageId = messages.length > 0 ? messages[messages.length - 1].message_id : null;
 
     const toWsUrl = () => {

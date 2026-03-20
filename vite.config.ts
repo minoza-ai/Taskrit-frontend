@@ -12,12 +12,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/chat-api': {
-        target: process.env.VITE_CHAT_API_TARGET ?? 'http://localhost:8000',
+        target: process.env.VITE_CHAT_API_TARGET ?? 'http://localhost:3001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/chat-api/, ''),
       },
       '/chat-ws': {
-        target: process.env.VITE_CHAT_WS_TARGET ?? 'ws://localhost:8000',
+        target: process.env.VITE_CHAT_WS_TARGET ?? 'ws://localhost:3001',
         changeOrigin: true,
         ws: true,
         rewrite: (path) => path.replace(/^\/chat-ws/, '/ws'),

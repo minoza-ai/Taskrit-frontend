@@ -121,7 +121,7 @@ const AppLayout = () => {
     let disposed = false;
 
     const wsBase = import.meta.env.VITE_CHAT_WS_BASE
-      || `${import.meta.env.VITE_CHAT_WS_TARGET || 'ws://localhost:8000'}/ws`;
+      || `${import.meta.env.VITE_CHAT_WS_TARGET || 'ws://localhost:3001'}/ws`;
 
     const toNotificationsWsUrl = () => {
       const query = new URLSearchParams({ token: accessToken });
