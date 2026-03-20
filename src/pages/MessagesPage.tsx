@@ -221,7 +221,7 @@ const MessagesPage = () => {
 
     try {
       const sent = await sendRoomMessage(accessToken, selectedConversation, text);
-      setMessages((prev) => [...prev, sent]);
+      appendMessageDedup(sent);
       await loadRooms();
     } catch (err: any) {
       setError(err.message || '메시지 전송에 실패했습니다.');
