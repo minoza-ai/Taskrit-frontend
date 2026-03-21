@@ -41,12 +41,18 @@ const MessagesPage = () => {
   const [isComposingTargetUserId, setIsComposingTargetUserId] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const [showNewMessageNotice, setShowNewMessageNotice] = useState(false);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [actionMenuState, setActionMenuState] = useState<{ messageId: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => window.innerWidth >= 768);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollOnNextMessageRef = useRef(false);
   const lastMarkedReadMessageByRoomRef = useRef<Record<string, string>>({});
+  const longPressTimerRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -143,6 +149,69 @@ const MessagesPage = () => {
     scrollMessagesToBottom('smooth');
     shouldAutoScrollOnNextMessageRef.current = false;
   }, [messages]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsDesktopViewport(window.innerWidth >= 768);
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+    }, 1800);
+  };
+
+  const openActionMenu = (messageId: string) => {
+    setActionMenuState({ messageId });
+  };
+
+  const closeActionMenu = () => {
+    setActionMenuState(null);
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleMessageTouchStart = (_e: React.TouchEvent<HTMLDivElement>, messageId: string) => {
+    if (isDesktopViewport) return;
+
+    clearLongPressTimer();
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      openActionMenu(messageId);
+    }, 450);
+  };
+
+  const handleMessageTouchEnd = () => {
+    clearLongPressTimer();
+  };
 
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
@@ -426,16 +495,48 @@ const MessagesPage = () => {
     if (message.sender_uuid !== user?.user_uuid) return;
     if (message.is_deleted || message.message_type === 'deleted') return;
 
-    const confirmed = window.confirm('이 메시지를 삭제하시겠습니까?');
-    if (!confirmed) return;
-
     try {
       const result = await deleteRoomMessage(accessToken, message.message_id);
       applyDeletedMessage(result.data);
       await loadRooms();
+      closeActionMenu();
     } catch (err: any) {
       setError(err.message || '메시지 삭제에 실패했습니다.');
     }
+  };
+
+  const handleCopyMessage = async (message: ChatMessage) => {
+    if (message.is_deleted || message.message_type === 'deleted') {
+      showToast('삭제된 메시지는 복사할 수 없습니다.');
+      closeActionMenu();
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(message.text || '');
+      showToast('복사했습니다.');
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = message.text || '';
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('복사했습니다.');
+    }
+
+    closeActionMenu();
+  };
+
+  const handleOpenDesktopActionMenu = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    messageId: string,
+  ) => {
+    e.stopPropagation();
+    openActionMenu(messageId);
   };
 
   const handleMessageInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -608,16 +709,29 @@ const MessagesPage = () => {
                 {messages.map((msg) => {
                   const isMe = msg.sender_uuid === user?.user_uuid;
                   const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
+                  const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
                   return (
                     <div
                       key={msg.message_id}
+                      onMouseEnter={() => setHoveredMessageId(msg.message_id)}
+                      onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
                       className={`flex w-full mb-1 items-end ${
                         isMe ? 'justify-end pl-10' : 'justify-start pr-10'
                       }`}
                     >
                       {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
                       {isMe && (
-                        <div className="shrink-0 flex flex-col items-end justify-end text-[10px] leading-tight mr-1.5 pb-[2px]">
+                        <div className="relative shrink-0 flex flex-col items-end justify-end text-[10px] leading-tight mr-1.5 pb-[2px]">
+                          {isDesktopViewport && menuVisible && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
+                              className="absolute -top-6 right-0 w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors"
+                              aria-label="메시지 액션 열기"
+                            >
+                              ⋯
+                            </button>
+                          )}
                           {(msg.unread_member_count || 0) > 0 && (
                             <span className="font-semibold text-amber-500 mb-[2px]">
                               {msg.unread_member_count}
@@ -629,6 +743,9 @@ const MessagesPage = () => {
 
                       {/* 메시지 내용 (말풍선) */}
                       <div
+                        onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
+                        onTouchEnd={handleMessageTouchEnd}
+                        onTouchMove={handleMessageTouchEnd}
                         className={`relative px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full shadow-sm ${
                           isMe
                             ? 'bg-blue-500 text-white rounded-br-sm text-left'
@@ -663,16 +780,6 @@ const MessagesPage = () => {
                           </svg>
                         )}
 
-                        {isMe && !isDeleted && (
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteMessage(msg)}
-                            className="absolute -top-2 -left-12 text-[11px] px-2 py-1 rounded-md border border-border bg-surface text-text-hint hover:text-text"
-                          >
-                            삭제
-                          </button>
-                        )}
-
                         {isDeleted ? (
                           <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
                             삭제된 메시지입니다.
@@ -684,7 +791,17 @@ const MessagesPage = () => {
 
                       {/* 상대가 보낸 메시지의 시간 */}
                       {!isMe && (
-                        <div className="shrink-0 flex flex-col justify-end text-[10px] leading-tight ml-1.5 pb-[2px] text-text-hint">
+                        <div className="relative shrink-0 flex flex-col justify-end text-[10px] leading-tight ml-1.5 pb-[2px] text-text-hint">
+                          {isDesktopViewport && menuVisible && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
+                              className="absolute -top-6 left-0 w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors"
+                              aria-label="메시지 액션 열기"
+                            >
+                              ⋯
+                            </button>
+                          )}
                           {formatMessageTime(msg.created_at)}
                         </div>
                       )}
@@ -692,6 +809,95 @@ const MessagesPage = () => {
                   );
                 })}
                 </div>
+
+                {actionMenuState && (() => {
+                  const activeMessage = messages.find((m) => m.message_id === actionMenuState.messageId) || null;
+                  const canDelete = !!activeMessage
+                    && activeMessage.sender_uuid === user?.user_uuid
+                    && !activeMessage.is_deleted
+                    && activeMessage.message_type !== 'deleted';
+
+                  if (!activeMessage) {
+                    return null;
+                  }
+
+                  return (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={closeActionMenu}
+                      role="presentation"
+                      style={{
+                        animation: 'fadeIn 0.15s ease-out',
+                      }}
+                    >
+                      <style>{`
+                        @keyframes fadeIn {
+                          from { opacity: 0; }
+                          to { opacity: 1; }
+                        }
+                        @keyframes popIn {
+                          from { opacity: 0; transform: scale(0.95); }
+                          to { opacity: 1; transform: scale(1); }
+                        }
+                        @keyframes slideUp {
+                          from { opacity: 0; transform: translateY(10px); }
+                          to { opacity: 1; transform: translateY(0); }
+                        }
+                        @keyframes slideOut {
+                          from { opacity: 1; transform: translateY(0); }
+                          to { opacity: 0; transform: translateY(10px); }
+                        }
+                      `}</style>
+                      <div className="absolute inset-0 z-50 flex items-center justify-center">
+                        <div
+                          className="w-56 rounded-lg border border-border bg-surface shadow-2xl py-2"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            animation: 'popIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyMessage(activeMessage)}
+                            className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors"
+                          >
+                            복사
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              showToast('수정 기능은 준비 중입니다.');
+                              closeActionMenu();
+                            }}
+                            className="w-full text-left px-4 py-3 text-base text-text-hint hover:bg-surface-2 transition-colors"
+                          >
+                            수정 (준비중)
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canDelete}
+                            onClick={() => void handleDeleteMessage(activeMessage)}
+                            className="w-full text-left px-4 py-3 text-base text-red-500 hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {toastMessage && (
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 bottom-4 z-50 px-4 py-3 text-sm rounded-lg bg-black/90 text-white shadow-lg"
+                    style={{
+                      animation: toastMessage ? 'slideUp 0.2s ease-out forwards' : 'slideOut 0.2s ease-out forwards',
+                      transform: 'translateX(-50%)',
+                    }}
+                  >
+                    {toastMessage}
+                  </div>
+                )}
 
                 {showNewMessageNotice && (
                   <button
