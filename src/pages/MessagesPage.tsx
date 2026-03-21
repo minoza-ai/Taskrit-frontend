@@ -47,6 +47,8 @@ const MessagesPage = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => window.innerWidth >= 768);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -72,6 +74,22 @@ const MessagesPage = () => {
   const applyEditedMessage = (edited: ChatMessage) => {
     setMessages((prev) => prev.map((msg) => (msg.message_id === edited.message_id ? edited : msg)));
   };
+
+  const getFilteredMessages = () => {
+    if (!searchQuery.trim()) {
+      return messages;
+    }
+
+    // 한글 및 모든 문자 검색 지원
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+    
+    return messages.filter((msg) => {
+      const text = (msg.text || '').toLowerCase();
+      return text.includes(normalizedQuery);
+    });
+  };
+
+  const filteredMessages = getFilteredMessages();
 
   const markMessageAsRead = async (roomId: string, messageId: string) => {
     if (!accessToken) return;
@@ -739,10 +757,50 @@ const MessagesPage = () => {
                     {selectedRoom ? roomName(selectedRoom) : '채팅'}
                   </span>
                 </div>
-                <span className={`text-xs shrink-0 ${wsConnected ? 'text-green-600' : 'text-text-hint'}`}>
-                  {wsConnected ? '실시간 연결됨' : '재연결 중'}
-                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => {
+                      setSearchOpen(!searchOpen);
+                      if (searchOpen) setSearchQuery('');
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors"
+                    aria-label="메시지 검색"
+                    title="메시지 검색"
+                  >
+                    <svg className="w-5 h-5 text-text-hint hover:text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </button>
+                  <span className={`text-xs shrink-0 ${wsConnected ? 'text-green-600' : 'text-text-hint'}`}>
+                    {wsConnected ? '실시간 연결됨' : '재연결 중'}
+                  </span>
+                </div>
               </div>
+
+              {/* Search Bar */}
+              {searchOpen && (
+                <div className="px-3 md:px-4 py-2 border-b border-border">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setSearchOpen(false);
+                        setSearchQuery('');
+                      }
+                    }}
+                    placeholder="메시지 검색..."
+                    autoFocus
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  {searchQuery && (
+                    <div className="text-xs text-text-hint mt-1">
+                      검색 결과: {filteredMessages.length}개
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Messages */}
               <div className="relative flex-1 min-h-0">
@@ -752,7 +810,10 @@ const MessagesPage = () => {
                   className="h-full p-3 md:p-4 overflow-y-auto flex flex-col gap-3"
                 >
                 {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
-                {messages.map((msg) => {
+                {searchQuery && filteredMessages.length === 0 && (
+                  <div className="text-center py-8 text-text-hint text-sm">검색 결과가 없습니다</div>
+                )}
+                {filteredMessages.map((msg) => {
                   const isMe = msg.sender_uuid === user?.user_uuid;
                   const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
                   const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
