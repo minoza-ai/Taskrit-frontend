@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
+import { useThemeStore } from '../lib/theme';
 import {
   createDmRoom,
   listChatUsers,
@@ -19,6 +20,10 @@ const MessagesPage = () => {
   const user = useAuthStore((s) => s.user);
   const tryRefresh = useAuthStore((s) => s.tryRefresh);
   const logout = useAuthStore((s) => s.logout);
+  const themeMode = useThemeStore((s) => s.mode);
+  const isLightTheme =
+    themeMode === 'light' ||
+    (themeMode === 'system' && document.documentElement.getAttribute('data-theme') === 'light');
 
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
@@ -147,6 +152,28 @@ const MessagesPage = () => {
     if (!otherUser) return room.room_name || '1:1 채팅';
 
     return otherUser.nickname;
+  };
+
+  const formatMessageTime = (iso: string): string => {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return iso;
+
+    const now = new Date();
+    const sameDay =
+      dt.getFullYear() === now.getFullYear()
+      && dt.getMonth() === now.getMonth()
+      && dt.getDate() === now.getDate();
+
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const mm = String(dt.getMinutes()).padStart(2, '0');
+
+    if (sameDay) {
+      return `${hh}:${mm}`;
+    }
+
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${month}/${day} ${hh}:${mm}`;
   };
 
   const loadRooms = async () => {
@@ -547,37 +574,74 @@ const MessagesPage = () => {
                   className="h-full p-3 md:p-4 overflow-y-auto flex flex-col gap-3"
                 >
                 {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
-                {messages.map((msg) => (
-                  <div
-                    key={msg.message_id}
-                    className={`flex ${msg.sender_uuid === user?.user_uuid ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className="flex items-end gap-1.5">
-                      {msg.sender_uuid === user?.user_uuid && (msg.unread_member_count || 0) > 0 && (
-                        <span className="text-[10px] font-semibold text-amber-600 min-w-[0.75rem] text-right">
-                          {msg.unread_member_count}
-                        </span>
+                {messages.map((msg) => {
+                  const isMe = msg.sender_uuid === user?.user_uuid;
+                  return (
+                    <div
+                      key={msg.message_id}
+                      className={`flex w-full mb-1 items-end ${
+                        isMe ? 'justify-end pl-10' : 'justify-start pr-10'
+                      }`}
+                    >
+                      {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
+                      {isMe && (
+                        <div className="shrink-0 flex flex-col items-end justify-end text-[10px] leading-tight mr-1.5 pb-[2px]">
+                          {(msg.unread_member_count || 0) > 0 && (
+                            <span className="font-semibold text-amber-500 mb-[2px]">
+                              {msg.unread_member_count}
+                            </span>
+                          )}
+                          <span className="text-text-hint">{formatMessageTime(msg.created_at)}</span>
+                        </div>
                       )}
 
+                      {/* 메시지 내용 (말풍선) */}
                       <div
-                        className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
-                          msg.sender_uuid === user?.user_uuid
-                            ? 'bg-active text-active-text rounded-br-md'
-                            : 'bg-surface-2 text-text rounded-bl-md'
+                        className={`relative px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full shadow-sm ${
+                          isMe
+                            ? 'bg-blue-500 text-white rounded-br-sm text-left'
+                            : isLightTheme
+                              ? 'bg-[#F7F7F8] text-black rounded-bl-sm text-left border border-[#E3E3E6]'
+                              : 'bg-[#2C2C2E] text-gray-200 rounded-bl-sm text-left border border-gray-700'
                         }`}
+                        // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
+                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                       >
+                        {/* 말풍선 꼬리 추가 */}
+                        {isMe && (
+                          <svg
+                            className="absolute bottom-0 -right-2 w-3 h-4 text-blue-500"
+                            viewBox="0 0 12 16"
+                            fill="currentColor"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path d="M0 16C5 16 12 12 12 0C12 8 8 16 0 16Z" />
+                          </svg>
+                        )}
+                        {!isMe && (
+                          <svg
+                            className={`absolute bottom-0 -left-2 w-3 h-4 ${
+                              isLightTheme ? 'text-[#F7F7F8]' : 'text-[#2C2C2E]'
+                            }`}
+                            viewBox="0 0 12 16"
+                            fill="currentColor"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
+                          </svg>
+                        )}
                         {msg.text}
-                        <div
-                          className={`text-[10px] mt-1 ${
-                            msg.sender_uuid === user?.user_uuid ? 'text-active-text/70' : 'text-text-hint'
-                          }`}
-                        >
-                          {msg.created_at}
-                        </div>
                       </div>
+
+                      {/* 상대가 보낸 메시지의 시간 */}
+                      {!isMe && (
+                        <div className="shrink-0 flex flex-col justify-end text-[10px] leading-tight ml-1.5 pb-[2px] text-text-hint">
+                          {formatMessageTime(msg.created_at)}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 </div>
 
                 {showNewMessageNotice && (
