@@ -89,6 +89,27 @@ const MessagesPage = () => {
     });
   };
 
+  const highlightSearchQuery = (text: string) => {
+    if (!searchQuery.trim()) {
+      return text;
+    }
+
+    const query = searchQuery.trim();
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+
+    return parts.map((part, index) => {
+      if (regex.test(part)) {
+        return (
+          <mark key={index} className="bg-yellow-200 dark:bg-yellow-600 font-semibold rounded px-0.5">
+            {part}
+          </mark>
+        );
+      }
+      return part;
+    });
+  };
+
   const filteredMessages = getFilteredMessages();
 
   const markMessageAsRead = async (roomId: string, messageId: string) => {
@@ -901,6 +922,8 @@ const MessagesPage = () => {
                           <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
                             삭제된 메시지입니다.
                           </span>
+                        ) : searchQuery && msg.text ? (
+                          <span>{highlightSearchQuery(msg.text)}</span>
                         ) : (
                           msg.text
                         )}
