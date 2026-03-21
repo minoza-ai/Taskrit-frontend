@@ -6,6 +6,7 @@ import {
   listChatUsers,
   listMyChatRooms,
   listRoomMessages,
+  markRoomAsRead,
   sendRoomMessage,
   type ChatMessage,
   type ChatRoom,
@@ -39,6 +40,7 @@ const MessagesPage = () => {
   const reconnectTimerRef = useRef<number | null>(null);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollOnNextMessageRef = useRef(false);
+  const lastMarkedReadMessageByRoomRef = useRef<Record<string, string>>({});
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -46,6 +48,40 @@ const MessagesPage = () => {
         return prev;
       }
       return [...prev, incoming].sort((a, b) => a.seq - b.seq);
+    });
+  };
+
+  const markMessageAsRead = async (roomId: string, messageId: string) => {
+    if (!accessToken) return;
+    if (!messageId) return;
+
+    if (lastMarkedReadMessageByRoomRef.current[roomId] === messageId) {
+      return;
+    }
+
+    try {
+      await markRoomAsRead(accessToken, roomId, messageId);
+      lastMarkedReadMessageByRoomRef.current[roomId] = messageId;
+      await loadRooms();
+    } catch {
+      // 읽음 표시는 UX 보조 기능이라 실패해도 채팅 흐름은 유지한다.
+    }
+  };
+
+  const applyReadUpdate = (readerUserUuid: string, lastReadSeq: number) => {
+    setMessages((prev) => {
+      if (!Number.isFinite(lastReadSeq) || lastReadSeq <= 0) {
+        return prev;
+      }
+
+      return prev.map((msg) => {
+        if (msg.sender_uuid === readerUserUuid || msg.seq > lastReadSeq) {
+          return msg;
+        }
+
+        const nextUnread = Math.max((msg.unread_member_count || 0) - 1, 0);
+        return { ...msg, unread_member_count: nextUnread };
+      });
     });
   };
 
@@ -149,6 +185,12 @@ const MessagesPage = () => {
     try {
       const data = await listRoomMessages(accessToken, roomId);
       setMessages(data);
+
+      const latest = data[data.length - 1];
+      if (latest) {
+        void markMessageAsRead(roomId, latest.message_id);
+      }
+
       requestAnimationFrame(() => {
         scrollMessagesToBottom('auto');
       });
@@ -271,11 +313,26 @@ const MessagesPage = () => {
               shouldAutoScrollOnNextMessageRef.current = incoming.sender_uuid === user?.user_uuid || wasNearBottom;
               appendMessageDedup(incoming);
 
+              if (incoming.sender_uuid !== user?.user_uuid) {
+                void markMessageAsRead(selectedConversation, incoming.message_id);
+              }
+
               if (!shouldAutoScrollOnNextMessageRef.current) {
                 setShowNewMessageNotice(true);
               }
             }
 
+            void loadRooms();
+            return;
+          }
+
+          if (
+            payload.type === 'read_update'
+            && payload.room_id === selectedConversation
+            && typeof payload.user_uuid === 'string'
+            && typeof payload.last_read_seq === 'number'
+          ) {
+            applyReadUpdate(payload.user_uuid, payload.last_read_seq);
             void loadRooms();
           }
         } catch {
@@ -495,20 +552,28 @@ const MessagesPage = () => {
                     key={msg.message_id}
                     className={`flex ${msg.sender_uuid === user?.user_uuid ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div
-                      className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
-                        msg.sender_uuid === user?.user_uuid
-                          ? 'bg-active text-active-text rounded-br-md'
-                          : 'bg-surface-2 text-text rounded-bl-md'
-                      }`}
-                    >
-                      {msg.text}
+                    <div className="flex items-end gap-1.5">
+                      {msg.sender_uuid === user?.user_uuid && (msg.unread_member_count || 0) > 0 && (
+                        <span className="text-[10px] font-semibold text-amber-600 min-w-[0.75rem] text-right">
+                          {msg.unread_member_count}
+                        </span>
+                      )}
+
                       <div
-                        className={`text-[10px] mt-1 ${
-                          msg.sender_uuid === user?.user_uuid ? 'text-active-text/70' : 'text-text-hint'
+                        className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
+                          msg.sender_uuid === user?.user_uuid
+                            ? 'bg-active text-active-text rounded-br-md'
+                            : 'bg-surface-2 text-text rounded-bl-md'
                         }`}
                       >
-                        {msg.created_at}
+                        {msg.text}
+                        <div
+                          className={`text-[10px] mt-1 ${
+                            msg.sender_uuid === user?.user_uuid ? 'text-active-text/70' : 'text-text-hint'
+                          }`}
+                        >
+                          {msg.created_at}
+                        </div>
                       </div>
                     </div>
                   </div>

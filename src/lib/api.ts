@@ -367,6 +367,7 @@ export interface ChatMessage {
   saved_filename?: string | null;
   file_url?: string | null;
   created_at: string;
+  unread_member_count?: number;
 }
 
 export async function listMyChatRooms(token: string): Promise<ChatRoom[]> {
@@ -396,5 +397,16 @@ export async function sendRoomMessage(token: string, roomId: string, text: strin
   return chatRequest(`/rooms/${roomId}/messages`, token, {
     method: 'POST',
     body: JSON.stringify({ text }),
+  });
+}
+
+export async function markRoomAsRead(
+  token: string,
+  roomId: string,
+  last_read_message_id: string,
+): Promise<{ message: string; room_id: string; user_uuid: string; last_read_message_id: string; last_read_seq: number }> {
+  return chatRequest(`/rooms/${roomId}/read`, token, {
+    method: 'POST',
+    body: JSON.stringify({ last_read_message_id }),
   });
 }
