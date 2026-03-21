@@ -276,12 +276,17 @@ const MessagesPage = () => {
     clearLongPressTimer();
 
     longPressTimerRef.current = window.setTimeout(() => {
+      setHoveredMessageId(messageId);
       openActionMenu(messageId);
     }, 450);
   };
 
   const handleMessageTouchEnd = () => {
     clearLongPressTimer();
+  };
+
+  const resetHoveredMessageId = () => {
+    setHoveredMessageId(null);
   };
 
   const roomName = (room: ChatRoom): string => {
@@ -878,7 +883,7 @@ const MessagesPage = () => {
                       {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
                       {isMe && (
                         <div className="relative shrink-0 flex flex-col items-end justify-end text-[10px] leading-tight mr-1.5 pb-[2px]">
-                          {isDesktopViewport && menuVisible && (
+                          {menuVisible && (
                             <button
                               type="button"
                               onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
@@ -951,7 +956,7 @@ const MessagesPage = () => {
                       {/* 상대가 보낸 메시지의 시간 */}
                       {!isMe && (
                         <div className="relative shrink-0 flex flex-col justify-end text-[10px] leading-tight ml-1.5 pb-[2px] text-text-hint">
-                          {isDesktopViewport && menuVisible && (
+                          {menuVisible && (
                             <button
                               type="button"
                               onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
