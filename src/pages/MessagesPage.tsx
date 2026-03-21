@@ -5,6 +5,7 @@ import { useThemeStore } from '../lib/theme';
 import {
   createDmRoom,
   deleteRoomMessage,
+  editRoomMessage,
   listChatUsers,
   listMyChatRooms,
   listRoomMessages,
@@ -45,6 +46,7 @@ const MessagesPage = () => {
   const [actionMenuState, setActionMenuState] = useState<{ messageId: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => window.innerWidth >= 768);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -65,6 +67,10 @@ const MessagesPage = () => {
 
   const applyDeletedMessage = (deleted: ChatMessage) => {
     setMessages((prev) => prev.map((msg) => (msg.message_id === deleted.message_id ? deleted : msg)));
+  };
+
+  const applyEditedMessage = (edited: ChatMessage) => {
+    setMessages((prev) => prev.map((msg) => (msg.message_id === edited.message_id ? edited : msg)));
   };
 
   const markMessageAsRead = async (roomId: string, messageId: string) => {
@@ -444,6 +450,16 @@ const MessagesPage = () => {
               applyDeletedMessage(deleted);
             }
             void loadRooms();
+            return;
+          }
+
+          if (payload.type === 'message_updated' && payload.data) {
+            const edited = payload.data as ChatMessage;
+            if (edited.room_id === selectedConversation) {
+              applyEditedMessage(edited);
+            }
+            void loadRooms();
+            return;
           }
         } catch {
           // Ignore malformed websocket payloads.
@@ -476,8 +492,24 @@ const MessagesPage = () => {
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedConversation || !accessToken) return;
     const text = newMessage.trim();
-    setNewMessage('');
 
+    // 수정 모드: 메시지 편집
+    if (editingMessageId) {
+      try {
+        const result = await editRoomMessage(accessToken, editingMessageId, text);
+        applyEditedMessage(result.data);
+        setNewMessage('');
+        setEditingMessageId(null);
+        await loadRooms();
+        showToast('메시지가 수정되었습니다.');
+      } catch (err: any) {
+        setError(err.message || '메시지 수정에 실패했습니다.');
+      }
+      return;
+    }
+
+    // 일반 모드: 메시지 전송
+    setNewMessage('');
     try {
       const sent = await sendRoomMessage(accessToken, selectedConversation, text);
       appendMessageDedup(sent);
@@ -529,6 +561,20 @@ const MessagesPage = () => {
     }
 
     closeActionMenu();
+  };
+
+  const startEditMessage = (message: ChatMessage) => {
+    if (message.sender_uuid !== user?.user_uuid) return;
+    if (message.is_deleted || message.message_type === 'deleted') return;
+    
+    setNewMessage(message.text);
+    setEditingMessageId(message.message_id);
+    closeActionMenu();
+  };
+
+  const cancelEditMessage = () => {
+    setNewMessage('');
+    setEditingMessageId(null);
   };
 
   const handleOpenDesktopActionMenu = (
@@ -710,6 +756,7 @@ const MessagesPage = () => {
                   const isMe = msg.sender_uuid === user?.user_uuid;
                   const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
                   const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
+                  
                   return (
                     <div
                       key={msg.message_id}
@@ -738,6 +785,7 @@ const MessagesPage = () => {
                             </span>
                           )}
                           <span className="text-text-hint">{formatMessageTime(msg.created_at)}</span>
+                          {msg.is_edited && <span className="text-text-hint text-[8px]">수정됨</span>}
                         </div>
                       )}
 
@@ -802,7 +850,10 @@ const MessagesPage = () => {
                               ⋯
                             </button>
                           )}
-                          {formatMessageTime(msg.created_at)}
+                          <div className="flex flex-col items-start">
+                            <span>{formatMessageTime(msg.created_at)}</span>
+                            {msg.is_edited && <span className="text-[8px]">수정됨</span>}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -865,13 +916,15 @@ const MessagesPage = () => {
                           </button>
                           <button
                             type="button"
+                            disabled={!canDelete}
                             onClick={() => {
-                              showToast('수정 기능은 준비 중입니다.');
-                              closeActionMenu();
+                              if (activeMessage && activeMessage.sender_uuid === user?.user_uuid) {
+                                startEditMessage(activeMessage);
+                              }
                             }}
-                            className="w-full text-left px-4 py-3 text-base text-text-hint hover:bg-surface-2 transition-colors"
+                            className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            수정 (준비중)
+                            수정
                           </button>
                           <button
                             type="button"
@@ -912,6 +965,18 @@ const MessagesPage = () => {
 
               {/* Input */}
               <div className="p-3 border-t border-border">
+                {editingMessageId && (
+                  <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-between border border-blue-200 dark:border-blue-800/30">
+                    <span className="text-xs text-text font-medium">메시지 수정 중</span>
+                    <button
+                      type="button"
+                      onClick={cancelEditMessage}
+                      className="btn-primary px-3 py-1 rounded-full text-xs cursor-pointer"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -927,7 +992,7 @@ const MessagesPage = () => {
                     onClick={handleSend}
                     className="btn-primary px-5 py-2.5 rounded-full text-sm cursor-pointer"
                   >
-                    전송
+                    {editingMessageId ? '수정' : '전송'}
                   </button>
                 </div>
               </div>

@@ -363,10 +363,12 @@ export interface ChatMessage {
   text: string;
   message_type: string;
   is_deleted: boolean;
+  is_edited?: boolean;
   file_name?: string | null;
   saved_filename?: string | null;
   file_url?: string | null;
   created_at: string;
+  edited_at?: string;
   unread_member_count?: number;
 }
 
@@ -406,6 +408,17 @@ export async function deleteRoomMessage(
 ): Promise<{ message: string; data: ChatMessage }> {
   return chatRequest(`/messages/${messageId}`, token, {
     method: 'DELETE',
+  });
+}
+
+export async function editRoomMessage(
+  token: string,
+  messageId: string,
+  text: string,
+): Promise<{ message: string; data: ChatMessage }> {
+  return chatRequest(`/messages/${messageId}`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ text }),
   });
 }
 
