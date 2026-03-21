@@ -161,6 +161,13 @@ const MessagesPage = () => {
     setShowNewMessageNotice(false);
   };
 
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (!messageElement) return;
+
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const handleMessageScroll = () => {
     if (isNearMessageBottom()) {
       setShowNewMessageNotice(false);
@@ -821,6 +828,7 @@ const MessagesPage = () => {
                   return (
                     <div
                       key={msg.message_id}
+                      id={`message-${msg.message_id}`}
                       onMouseEnter={() => setHoveredMessageId(msg.message_id)}
                       onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
                       className={`flex w-full mb-1 items-end ${
@@ -968,33 +976,54 @@ const MessagesPage = () => {
                             animation: 'popIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={() => void handleCopyMessage(activeMessage)}
-                            className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors"
-                          >
-                            복사
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!canDelete}
-                            onClick={() => {
-                              if (activeMessage && activeMessage.sender_uuid === user?.user_uuid) {
-                                startEditMessage(activeMessage);
-                              }
-                            }}
-                            className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!canDelete}
-                            onClick={() => void handleDeleteMessage(activeMessage)}
-                            className="w-full text-left px-4 py-3 text-base text-red-500 hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            삭제
-                          </button>
+                          {searchQuery ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSearchOpen(false);
+                                  setSearchQuery('');
+                                  closeActionMenu();
+                                  requestAnimationFrame(() => {
+                                    scrollToMessage(activeMessage.message_id);
+                                  });
+                                }}
+                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors"
+                              >
+                                메시지로 이동
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleCopyMessage(activeMessage)}
+                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors"
+                              >
+                                복사
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!canDelete}
+                                onClick={() => {
+                                  if (activeMessage && activeMessage.sender_uuid === user?.user_uuid) {
+                                    startEditMessage(activeMessage);
+                                  }
+                                }}
+                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                수정
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!canDelete}
+                                onClick={() => void handleDeleteMessage(activeMessage)}
+                                className="w-full text-left px-4 py-3 text-base text-red-500 hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                삭제
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
