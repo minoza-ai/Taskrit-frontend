@@ -49,6 +49,7 @@ const MessagesPage = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -57,6 +58,7 @@ const MessagesPage = () => {
   const lastMarkedReadMessageByRoomRef = useRef<Record<string, string>>({});
   const longPressTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const blinkTimerRef = useRef<number | null>(null);
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -187,6 +189,23 @@ const MessagesPage = () => {
     if (!messageElement) return;
 
     messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // 스크롤 완료 후 깜빡임 효과 시작
+    if (blinkTimerRef.current) {
+      clearTimeout(blinkTimerRef.current);
+    }
+
+    blinkTimerRef.current = window.setTimeout(() => {
+      setBlinkingMessageId(messageId);
+      
+      // 애니메이션 완료 후 상태 초기화 (1800ms = 0.6s * 3번 깜빡임)
+      const resetTimer = window.setTimeout(() => {
+        setBlinkingMessageId(null);
+        blinkTimerRef.current = null;
+      }, 1800);
+
+      return () => clearTimeout(resetTimer);
+    }, 600); // 스크롤 완료 시간 대기
   };
 
   const handleMessageScroll = () => {
@@ -854,7 +873,7 @@ const MessagesPage = () => {
                       onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
                       className={`flex w-full mb-1 items-end ${
                         isMe ? 'justify-end pl-10' : 'justify-start pr-10'
-                      }`}
+                      } ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''}`}
                     >
                       {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
                       {isMe && (
