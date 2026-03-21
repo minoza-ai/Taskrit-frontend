@@ -400,6 +400,15 @@ export async function sendRoomMessage(token: string, roomId: string, text: strin
   });
 }
 
+export async function deleteRoomMessage(
+  token: string,
+  messageId: string,
+): Promise<{ message: string; data: ChatMessage }> {
+  return chatRequest(`/messages/${messageId}`, token, {
+    method: 'DELETE',
+  });
+}
+
 export async function markRoomAsRead(
   token: string,
   roomId: string,

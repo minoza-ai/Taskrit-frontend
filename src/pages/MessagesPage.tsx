@@ -4,6 +4,7 @@ import { useAuthStore } from '../lib/store';
 import { useThemeStore } from '../lib/theme';
 import {
   createDmRoom,
+  deleteRoomMessage,
   listChatUsers,
   listMyChatRooms,
   listRoomMessages,
@@ -54,6 +55,10 @@ const MessagesPage = () => {
       }
       return [...prev, incoming].sort((a, b) => a.seq - b.seq);
     });
+  };
+
+  const applyDeletedMessage = (deleted: ChatMessage) => {
+    setMessages((prev) => prev.map((msg) => (msg.message_id === deleted.message_id ? deleted : msg)));
   };
 
   const markMessageAsRead = async (roomId: string, messageId: string) => {
@@ -361,6 +366,15 @@ const MessagesPage = () => {
           ) {
             applyReadUpdate(payload.user_uuid, payload.last_read_seq);
             void loadRooms();
+            return;
+          }
+
+          if (payload.type === 'message_deleted' && payload.data) {
+            const deleted = payload.data as ChatMessage;
+            if (deleted.room_id === selectedConversation) {
+              applyDeletedMessage(deleted);
+            }
+            void loadRooms();
           }
         } catch {
           // Ignore malformed websocket payloads.
@@ -404,6 +418,23 @@ const MessagesPage = () => {
       await loadRooms();
     } catch (err: any) {
       setError(err.message || '메시지 전송에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteMessage = async (message: ChatMessage) => {
+    if (!accessToken) return;
+    if (message.sender_uuid !== user?.user_uuid) return;
+    if (message.is_deleted || message.message_type === 'deleted') return;
+
+    const confirmed = window.confirm('이 메시지를 삭제하시겠습니까?');
+    if (!confirmed) return;
+
+    try {
+      const result = await deleteRoomMessage(accessToken, message.message_id);
+      applyDeletedMessage(result.data);
+      await loadRooms();
+    } catch (err: any) {
+      setError(err.message || '메시지 삭제에 실패했습니다.');
     }
   };
 
@@ -576,6 +607,7 @@ const MessagesPage = () => {
                 {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
                 {messages.map((msg) => {
                   const isMe = msg.sender_uuid === user?.user_uuid;
+                  const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
                   return (
                     <div
                       key={msg.message_id}
@@ -630,7 +662,24 @@ const MessagesPage = () => {
                             <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
                           </svg>
                         )}
-                        {msg.text}
+
+                        {isMe && !isDeleted && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteMessage(msg)}
+                            className="absolute -top-2 -left-12 text-[11px] px-2 py-1 rounded-md border border-border bg-surface text-text-hint hover:text-text"
+                          >
+                            삭제
+                          </button>
+                        )}
+
+                        {isDeleted ? (
+                          <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
+                            삭제된 메시지입니다.
+                          </span>
+                        ) : (
+                          msg.text
+                        )}
                       </div>
 
                       {/* 상대가 보낸 메시지의 시간 */}
