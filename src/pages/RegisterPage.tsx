@@ -12,8 +12,24 @@ const RegisterPage = () => {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // User ID 검증 규칙 (백엔드와 동일)
+  const USER_ID_REGEX = /^[a-zA-Z0-9_-]{3,32}$/;
+
+  const validateUserId = (id: string): string | null => {
+    if (!id) return null; // 입력 안됨 (에러 아님)
+    
+    // 공백 포함 여부 확인 또는 정규식 검증
+    if (/\s/.test(id) || !USER_ID_REGEX.test(id)) {
+      return '아이디는 영문, 숫자, 언더스코어, 하이픈만 사용 가능하며 3-32자여야 합니다';
+    }
+    
+    return null;
+  };
+
+  const userIdError = validateUserId(userId);
+
   const canSubmit = Boolean(
-    userId && nickname && password && password === passwordConfirm && !isLoading,
+    userId && !userIdError && nickname && password && password === passwordConfirm && !isLoading,
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,8 +58,13 @@ const RegisterPage = () => {
               onChange={(e) => setUserId(e.target.value)}
               placeholder="사용할 아이디"
               autoComplete="username"
-              className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
+              className={`glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans ${
+                userIdError ? 'border border-error' : ''
+              }`}
             />
+            {userIdError && (
+              <p className="text-xs text-error mt-1">{userIdError}</p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

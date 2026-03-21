@@ -24,6 +24,7 @@ function translateError(message: string): string {
     'Wallet already connected': '이미 연결된 지갑입니다',
     'Invalid signature': '서명이 유효하지 않습니다',
     'Nonce mismatch': 'Nonce가 일치하지 않습니다',
+    '사용할 수 없는 문자열이 포함되어 있습니다': '아이디는 영문, 숫자, 언더스코어, 하이픈만 사용 가능하며 3-32자여야 합니다',
   };
 
   return errorMap[message] || message;
