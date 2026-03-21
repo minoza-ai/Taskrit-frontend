@@ -122,6 +122,12 @@ html.theme-transition * {
   --color-glass-hover: rgba(0, 0, 0, 0.05);
 }
 
+/* Light mode selection styling */
+[data-theme="light"] ::selection {
+  background: #111111;
+  color: #ffffff;
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -187,6 +193,19 @@ html.theme-transition * {
   }
   .glass-input::placeholder {
     color: var(--color-text-hint);
+  }
+
+  [data-theme="light"] .glass-input {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid #c0c0c0;
+  }
+  [data-theme="light"] .glass-input:focus {
+    outline: none;
+    border-color: #111111;
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.1);
+  }
+  [data-theme="light"] .glass-input::placeholder {
+    color: #888888;
   }
 
   .btn-primary {
