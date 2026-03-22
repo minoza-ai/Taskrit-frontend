@@ -44,7 +44,7 @@ const DashboardPage = () => {
       {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-1">
-          안녕하세요{user ? `, ${user.nickname}` : ''}
+          안녕하세요{user ? `, ${user.nickname}님` : ''}!
         </h1>
         <p className="text-text-sub text-sm">Taskrit 대시보드에 오신 것을 환영합니다.</p>
       </div>
