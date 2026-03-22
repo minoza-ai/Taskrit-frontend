@@ -285,10 +285,6 @@ const MessagesPage = () => {
     clearLongPressTimer();
   };
 
-  const resetHoveredMessageId = () => {
-    setHoveredMessageId(null);
-  };
-
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
 
