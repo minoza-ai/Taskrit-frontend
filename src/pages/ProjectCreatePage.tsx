@@ -136,9 +136,8 @@ const ProjectCreatePage = () => {
         {[1, 2, 3].map((s) => (
           <div
             key={s}
-            className={`w-2 h-2 rounded-full transition-all duration-300 ${
-              s === step ? 'bg-text scale-130' : s < step ? 'bg-text' : 'bg-border'
-            }`}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${s === step ? 'bg-text scale-130' : s < step ? 'bg-text' : 'bg-border'
+              }`}
           />
         ))}
       </div>
@@ -169,11 +168,10 @@ const ProjectCreatePage = () => {
                     key={cat}
                     type="button"
                     onClick={() => toggleCategory(cat)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                      selectedCategories.includes(cat)
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${selectedCategories.includes(cat)
                         ? 'bg-active text-active-text'
                         : 'bg-surface-2 text-text-sub border border-border hover:border-text-hint'
-                    }`}
+                      }`}
                   >
                     {cat}
                   </button>
@@ -252,11 +250,10 @@ const ProjectCreatePage = () => {
                     <button
                       key={type}
                       onClick={() => updateRequirement(idx, 'type', type)}
-                      className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-                        req.type === type
+                      className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${req.type === type
                           ? 'bg-active text-active-text'
                           : 'bg-surface-2 text-text-sub border border-border'
-                      }`}
+                        }`}
                     >
                       {type === 'human' ? '👤 인간' : type === 'ai' ? '🤖 AI' : '⚙️ 로봇'}
                     </button>

@@ -55,21 +55,19 @@ const ProfilePage = () => {
       <div className="inline-flex bg-surface-2 rounded-xl p-1 gap-0.5 mb-6">
         <button
           onClick={() => setActiveTab('competency')}
-          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'competency'
+          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'competency'
               ? 'bg-surface text-text shadow-sm'
               : 'text-text-hint hover:text-text-sub'
-          }`}
+            }`}
         >
           능력치
         </button>
         <button
           onClick={() => setActiveTab('reputation')}
-          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'reputation'
+          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'reputation'
               ? 'bg-surface text-text shadow-sm'
               : 'text-text-hint hover:text-text-sub'
-          }`}
+            }`}
         >
           성과 / 평판
         </button>

@@ -63,7 +63,7 @@ async function chatRequest<T>(
 ): Promise<T> {
   const url = `${CHAT_API_BASE}${path}`;
   const isFormData = options.body instanceof FormData;
-  
+
   const headers: Record<string, string> = {
     ...(!isFormData && { 'Content-Type': 'application/json' }),
     Authorization: `Bearer ${token}`,
@@ -402,10 +402,10 @@ export async function uploadRoomFile(
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     // optimize is a query param
     const path = `/rooms/${roomId}/files?optimize=${optimize}`;
-    
+
     return await chatRequest(path, token, {
       method: 'POST',
       body: formData,

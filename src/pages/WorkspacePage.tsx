@@ -40,11 +40,10 @@ const WorkspacePage = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === tab
+            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab
                 ? 'bg-surface text-text shadow-sm'
                 : 'text-text-hint hover:text-text-sub'
-            }`}
+              }`}
           >
             {tab === 'chat' ? '채팅' : tab === 'files' ? '파일' : tab === 'tasks' ? '역할 분담' : '일정'}
           </button>

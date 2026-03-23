@@ -58,11 +58,10 @@ const MembershipPage = () => {
         {plans.map((plan) => (
           <div
             key={plan.id}
-            className={`rounded-xl p-6 transition-all ${
-              plan.id === 'pro'
+            className={`rounded-xl p-6 transition-all ${plan.id === 'pro'
                 ? 'glass-card border-white/10 relative overflow-hidden'
                 : 'border border-border bg-surface'
-            }`}
+              }`}
           >
             {plan.id === 'pro' && (
               <div className="absolute top-0 right-0 bg-active text-active-text text-[10px] font-bold px-3 py-1 rounded-bl-lg">

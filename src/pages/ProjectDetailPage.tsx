@@ -250,11 +250,10 @@ const ProjectDetailPage = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab
-                ? 'bg-surface text-text shadow-sm'
-                : 'text-text-hint hover:text-text-sub'
-            }`}
+            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab
+              ? 'bg-surface text-text shadow-sm'
+              : 'text-text-hint hover:text-text-sub'
+              }`}
           >
             {tab === 'overview' ? '개요' : tab === 'team' ? 'AI 추천 팀' : '결과물'}
           </button>

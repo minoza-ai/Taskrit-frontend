@@ -52,21 +52,19 @@ const MarketplacePage = () => {
       <div className="inline-flex bg-surface-2 rounded-xl p-1 gap-0.5 mb-6">
         <button
           onClick={() => setActiveTab('browse')}
-          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'browse'
+          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'browse'
               ? 'bg-surface text-text shadow-sm'
               : 'text-text-hint hover:text-text-sub'
-          }`}
+            }`}
         >
           둘러보기
         </button>
         <button
           onClick={() => setActiveTab('sell')}
-          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'sell'
+          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'sell'
               ? 'bg-surface text-text shadow-sm'
               : 'text-text-hint hover:text-text-sub'
-          }`}
+            }`}
         >
           판매하기
         </button>
@@ -91,11 +89,10 @@ const MarketplacePage = () => {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(categoryKeys[idx])}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === categoryKeys[idx]
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === categoryKeys[idx]
                     ? 'bg-active text-active-text'
                     : 'bg-surface-2 text-text-sub border border-border hover:border-text-hint'
-                }`}
+                  }`}
               >
                 {cat}
               </button>
@@ -157,11 +154,10 @@ const MarketplacePage = () => {
                       key={cat}
                       type="button"
                       onClick={() => setSellCategory(cat)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        sellCategory === cat
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${sellCategory === cat
                           ? 'bg-active text-active-text'
                           : 'bg-surface-2 text-text-sub border border-border'
-                      }`}
+                        }`}
                     >
                       {cat}
                     </button>

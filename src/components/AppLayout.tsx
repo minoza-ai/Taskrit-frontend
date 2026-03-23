@@ -291,10 +291,9 @@ const AppLayout = () => {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-active text-active-text'
-                      : 'text-text-sub hover:text-text hover:bg-hover'
+                  `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                    ? 'bg-active text-active-text'
+                    : 'text-text-sub hover:text-text hover:bg-hover'
                   }`
                 }
               >
@@ -338,26 +337,26 @@ const AppLayout = () => {
                         >
                           <div className="w-10 h-10 flex-shrink-0 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm">
                             {item.senderProfileImage ? (
-                                <img
-                                    src={item.senderProfileImage.startsWith('http') ? item.senderProfileImage : `/api${item.senderProfileImage}`}
-                                    alt={item.roomName}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        const fb = e.currentTarget.parentElement?.querySelector('.fallback-avatar');
-                                        if (fb) fb.classList.remove('hidden');
-                                        if (fb) fb.classList.add('flex');
-                                    }}
-                                />
+                              <img
+                                src={item.senderProfileImage.startsWith('http') ? item.senderProfileImage : `/api${item.senderProfileImage}`}
+                                alt={item.roomName}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fb = e.currentTarget.parentElement?.querySelector('.fallback-avatar');
+                                  if (fb) fb.classList.remove('hidden');
+                                  if (fb) fb.classList.add('flex');
+                                }}
+                              />
                             ) : null}
                             <div className={`fallback-avatar w-full h-full items-center justify-center bg-surface-3 text-text-sub ${item.senderProfileImage ? 'hidden' : 'flex'}`}>
-                                {item.roomName?.[0] || '?'}
+                              {item.roomName?.[0] || '?'}
                             </div>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-text truncate">{item.roomName}</div>
                             <div className="text-xs text-text-sub truncate mt-0.5">{item.preview}</div>
-                            <div className="text-[10px] text-text-hint mt-1">{new Date(item.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                            <div className="text-[10px] text-text-hint mt-1">{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                           </div>
                           {!item.seen && (
                             <div className="w-2 h-2 rounded-full bg-active mt-2 shrink-0"></div>
@@ -412,10 +411,9 @@ const AppLayout = () => {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `h-14 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${
-                  isActive
-                    ? 'bg-active text-active-text'
-                    : 'text-text-hint hover:text-text-sub hover:bg-hover'
+                `h-14 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${isActive
+                  ? 'bg-active text-active-text'
+                  : 'text-text-hint hover:text-text-sub hover:bg-hover'
                 }`
               }
             >

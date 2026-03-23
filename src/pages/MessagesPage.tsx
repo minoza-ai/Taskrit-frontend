@@ -93,7 +93,7 @@ const MessagesPage = () => {
 
     // 한글 및 모든 문자 검색 지원
     const normalizedQuery = searchQuery.toLowerCase().trim();
-    
+
     return messages.filter((msg) => {
       const text = (msg.text || '').toLowerCase();
       return text.includes(normalizedQuery);
@@ -206,7 +206,7 @@ const MessagesPage = () => {
 
     blinkTimerRef.current = window.setTimeout(() => {
       setBlinkingMessageId(messageId);
-      
+
       // 애니메이션 완료 후 상태 초기화 (1800ms = 0.6s * 3번 깜빡임)
       const resetTimer = window.setTimeout(() => {
         setBlinkingMessageId(null);
@@ -674,7 +674,7 @@ const MessagesPage = () => {
   const startEditMessage = (message: ChatMessage) => {
     if (message.sender_uuid !== user?.user_uuid) return;
     if (message.is_deleted || message.message_type === 'deleted') return;
-    
+
     setNewMessage(message.text);
     setEditingMessageId(message.message_id);
     closeActionMenu();
@@ -799,57 +799,56 @@ const MessagesPage = () => {
                   setSelectedConversation(conv.room_id);
                   setMobileView('chat');
                 }}
-                className={`w-full text-left p-3 rounded-lg transition-all cursor-pointer ${
-                  selectedConversation === conv.room_id
+                className={`w-full text-left p-3 rounded-lg transition-all cursor-pointer ${selectedConversation === conv.room_id
                     ? 'bg-surface-2 border border-border'
                     : 'hover:bg-surface-2/50'
-                }`}
+                  }`}
               >
-               <div className="flex gap-3 items-center">
-                <div className="w-10 h-10 rounded-full bg-surface-3 flex-shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
-                   {(() => {
-                        const targetUser = getOtherUser(conv);
-                        if (targetUser?.profile_image_url) {
-                            return (
-                                <>
-                                <img
-                                    src={targetUser.profile_image_url.startsWith('http') ? targetUser.profile_image_url : `/api${targetUser.profile_image_url}`}
-                                    alt="Profile"
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.remove('hidden');
-                                        e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.add('flex');
-                                    }}
-                                />
-                                <span className="fallback-initial hidden w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold">
-                                    {targetUser.nickname?.[0] || conv.room_name?.[0] || '?'}
-                                </span>
-                                </>
-                            );
-                        }
-                        return targetUser?.nickname?.[0] || conv.room_name?.[0] || '?';
-                   })()}
-                </div>
+                <div className="flex gap-3 items-center">
+                  <div className="w-10 h-10 rounded-full bg-surface-3 flex-shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
+                    {(() => {
+                      const targetUser = getOtherUser(conv);
+                      if (targetUser?.profile_image_url) {
+                        return (
+                          <>
+                            <img
+                              src={targetUser.profile_image_url.startsWith('http') ? targetUser.profile_image_url : `/api${targetUser.profile_image_url}`}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.remove('hidden');
+                                e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.add('flex');
+                              }}
+                            />
+                            <span className="fallback-initial hidden w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold">
+                              {targetUser.nickname?.[0] || conv.room_name?.[0] || '?'}
+                            </span>
+                          </>
+                        );
+                      }
+                      return targetUser?.nickname?.[0] || conv.room_name?.[0] || '?';
+                    })()}
+                  </div>
 
-                <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1 min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
                         <span className="font-medium text-sm truncate">{roomName(conv)}</span>
                         {getOtherUser(conv)?.wallet_address && <VerifiedIcon />}
-                    </div>
-                    <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
+                      </div>
+                      <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
-                    {(conv.unread_count || 0) > 0 && (
+                      <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
+                      {(conv.unread_count || 0) > 0 && (
                         <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
-                        {conv.unread_count}
+                          {conv.unread_count}
                         </span>
-                    )}
+                      )}
                     </div>
+                  </div>
                 </div>
-               </div>
               </button>
             ))}
           </div>
@@ -933,159 +932,155 @@ const MessagesPage = () => {
                   onScroll={handleMessageScroll}
                   className="h-full p-3 md:p-4 overflow-y-auto flex flex-col gap-3"
                 >
-                {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
-                {searchQuery && filteredMessages.length === 0 && (
-                  <div className="text-center py-8 text-text-hint text-sm">검색 결과가 없습니다</div>
-                )}
-                {filteredMessages.map((msg) => {
-                  const isMe = msg.sender_uuid === user?.user_uuid;
-                  const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
-                  const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
-                  
-                  return (
-                    <div
-                      key={msg.message_id}
-                      id={`message-${msg.message_id}`}
-                      onMouseEnter={() => setHoveredMessageId(msg.message_id)}
-                      onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
-                      className={`flex w-full mb-1 items-end ${
-                        isMe ? 'justify-end pl-10' : 'justify-start pr-10'
-                      } ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''}`}
-                    >
-                      {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
-                      {isMe && (
-                        <div className="relative shrink-0 flex flex-col items-end justify-end text-[10px] leading-tight mr-1.5 pb-[2px]">
-                          {menuVisible && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
-                              className="absolute -top-6 right-0 w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors"
-                              aria-label="메시지 액션 열기"
-                            >
-                              ⋯
-                            </button>
-                          )}
-                          {(msg.unread_member_count || 0) > 0 && (
-                            <span className="font-semibold text-amber-500 mb-[2px]">
-                              {msg.unread_member_count}
-                            </span>
-                          )}
-                          <span className="text-text-hint">{formatMessageTime(msg.created_at)}</span>
-                          {msg.is_edited && <span className="text-text-hint text-[8px]">수정됨</span>}
-                        </div>
-                      )}
+                  {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
+                  {searchQuery && filteredMessages.length === 0 && (
+                    <div className="text-center py-8 text-text-hint text-sm">검색 결과가 없습니다</div>
+                  )}
+                  {filteredMessages.map((msg) => {
+                    const isMe = msg.sender_uuid === user?.user_uuid;
+                    const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
+                    const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
 
-                      {/* 메시지 내용 (말풍선) */}
-                      {(() => {
-                        const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
-                        return (
-                          <div
-                            onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
-                            onTouchEnd={handleMessageTouchEnd}
-                            onTouchMove={handleMessageTouchEnd}
-                            className={`relative leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full ${
-                              isImageFile 
-                                ? 'bg-transparent text-left' 
-                                : `px-4 py-2.5 rounded-2xl shadow-sm ${
-                                    isMe
-                                      ? 'bg-blue-500 text-white rounded-br-sm text-left'
-                                      : isLightTheme
-                                        ? 'bg-[#F7F7F8] text-black rounded-bl-sm text-left border border-[#E3E3E6]'
-                                        : 'bg-[#2C2C2E] text-gray-200 rounded-bl-sm text-left border border-gray-700'
-                                  }`
-                            }`}
-                            // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
-                            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                          >
-                            {/* 말풍선 꼬리 (이미지가 아닐 때만 표시) */}
-                            {!isImageFile && isMe && (
-                              <svg
-                                className="absolute bottom-0 -right-2 w-3 h-4 text-blue-500"
-                                viewBox="0 0 12 16"
-                                fill="currentColor"
-                                xmlns="http://www.w3.org/2000/svg"
+                    return (
+                      <div
+                        key={msg.message_id}
+                        id={`message-${msg.message_id}`}
+                        onMouseEnter={() => setHoveredMessageId(msg.message_id)}
+                        onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
+                        className={`flex w-full mb-1 items-end ${isMe ? 'justify-end pl-10' : 'justify-start pr-10'
+                          } ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''}`}
+                      >
+                        {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
+                        {isMe && (
+                          <div className="relative shrink-0 flex flex-col items-end justify-end text-[10px] leading-tight mr-1.5 pb-[2px]">
+                            {menuVisible && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
+                                className="absolute -top-6 right-0 w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors"
+                                aria-label="메시지 액션 열기"
                               >
-                                <path d="M0 16C5 16 12 12 12 0C12 8 8 16 0 16Z" />
-                              </svg>
+                                ⋯
+                              </button>
                             )}
-                            {!isImageFile && !isMe && (
-                              <svg
-                                className={`absolute bottom-0 -left-2 w-3 h-4 ${
-                                  isLightTheme ? 'text-[#F7F7F8]' : 'text-[#2C2C2E]'
-                                }`}
-                                viewBox="0 0 12 16"
-                                fill="currentColor"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
-                              </svg>
-                            )}
-
-                            {isDeleted ? (
-                              <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
-                                삭제된 메시지입니다.
+                            {(msg.unread_member_count || 0) > 0 && (
+                              <span className="font-semibold text-amber-500 mb-[2px]">
+                                {msg.unread_member_count}
                               </span>
-                            ) : msg.message_type === 'file' ? (
-                              (() => {
-                                const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
-                                
-                                if (isImageFile) {
-                                  return (
-                                    <div className="cursor-pointer group relative" onClick={() => setViewingImage(fileUrl)}>
-                                      <img 
-                                        src={fileUrl} 
-                                        alt={msg.file_name || '첨부 이미지'} 
-                                        className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5" 
-                                        loading="lazy"
-                                      />
-                                    </div>
-                                  );
-                                }
-                                return (
-                                   <a 
-                                    href={fileUrl} 
-                                    download={msg.file_name} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className={`flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                    <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
-                                  </a>
-                                );
-                              })()
-                            ) : searchQuery && msg.text ? (
-                              <span>{highlightSearchQuery(msg.text)}</span>
-                            ) : (
-                              msg.text
                             )}
+                            <span className="text-text-hint">{formatMessageTime(msg.created_at)}</span>
+                            {msg.is_edited && <span className="text-text-hint text-[8px]">수정됨</span>}
                           </div>
-                        );
-                      })()}
+                        )}
 
-                      {/* 상대가 보낸 메시지의 시간 */}
-                      {!isMe && (
-                        <div className="relative shrink-0 flex flex-col justify-end text-[10px] leading-tight ml-1.5 pb-[2px] text-text-hint">
-                          {menuVisible && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
-                              className="absolute -top-6 left-0 w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors"
-                              aria-label="메시지 액션 열기"
+                        {/* 메시지 내용 (말풍선) */}
+                        {(() => {
+                          const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
+                          return (
+                            <div
+                              onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
+                              onTouchEnd={handleMessageTouchEnd}
+                              onTouchMove={handleMessageTouchEnd}
+                              className={`relative leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full ${isImageFile
+                                  ? 'bg-transparent text-left'
+                                  : `px-4 py-2.5 rounded-2xl shadow-sm ${isMe
+                                    ? 'bg-blue-500 text-white rounded-br-sm text-left'
+                                    : isLightTheme
+                                      ? 'bg-[#F7F7F8] text-black rounded-bl-sm text-left border border-[#E3E3E6]'
+                                      : 'bg-[#2C2C2E] text-gray-200 rounded-bl-sm text-left border border-gray-700'
+                                  }`
+                                }`}
+                              // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
+                              style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
-                              ⋯
-                            </button>
-                          )}
-                          <div className="flex flex-col items-start">
-                            <span>{formatMessageTime(msg.created_at)}</span>
-                            {msg.is_edited && <span className="text-[8px]">수정됨</span>}
+                              {/* 말풍선 꼬리 (이미지가 아닐 때만 표시) */}
+                              {!isImageFile && isMe && (
+                                <svg
+                                  className="absolute bottom-0 -right-2 w-3 h-4 text-blue-500"
+                                  viewBox="0 0 12 16"
+                                  fill="currentColor"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path d="M0 16C5 16 12 12 12 0C12 8 8 16 0 16Z" />
+                                </svg>
+                              )}
+                              {!isImageFile && !isMe && (
+                                <svg
+                                  className={`absolute bottom-0 -left-2 w-3 h-4 ${isLightTheme ? 'text-[#F7F7F8]' : 'text-[#2C2C2E]'
+                                    }`}
+                                  viewBox="0 0 12 16"
+                                  fill="currentColor"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
+                                </svg>
+                              )}
+
+                              {isDeleted ? (
+                                <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
+                                  삭제된 메시지입니다.
+                                </span>
+                              ) : msg.message_type === 'file' ? (
+                                (() => {
+                                  const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
+
+                                  if (isImageFile) {
+                                    return (
+                                      <div className="cursor-pointer group relative" onClick={() => setViewingImage(fileUrl)}>
+                                        <img
+                                          src={fileUrl}
+                                          alt={msg.file_name || '첨부 이미지'}
+                                          className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5"
+                                          loading="lazy"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <a
+                                      href={fileUrl}
+                                      download={msg.file_name}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={`flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                      <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
+                                    </a>
+                                  );
+                                })()
+                              ) : searchQuery && msg.text ? (
+                                <span>{highlightSearchQuery(msg.text)}</span>
+                              ) : (
+                                msg.text
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* 상대가 보낸 메시지의 시간 */}
+                        {!isMe && (
+                          <div className="relative shrink-0 flex flex-col justify-end text-[10px] leading-tight ml-1.5 pb-[2px] text-text-hint">
+                            {menuVisible && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
+                                className="absolute -top-6 left-0 w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors"
+                                aria-label="메시지 액션 열기"
+                              >
+                                ⋯
+                              </button>
+                            )}
+                            <div className="flex flex-col items-start">
+                              <span>{formatMessageTime(msg.created_at)}</span>
+                              {msg.is_edited && <span className="text-[8px]">수정됨</span>}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {actionMenuState && (() => {
@@ -1282,18 +1277,18 @@ const MessagesPage = () => {
         </div>
       </div>
       {viewingImage && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
           onClick={() => setViewingImage(null)}
         >
-          <button 
+          <button
             className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
             onClick={() => setViewingImage(null)}
           >
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          <img 
-            src={viewingImage} 
+          <img
+            src={viewingImage}
             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
             alt="Full size preview"
             onClick={(e) => e.stopPropagation()}
