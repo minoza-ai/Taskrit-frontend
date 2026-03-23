@@ -34,6 +34,51 @@ const MyPage = () => {
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDisconnectConfirmOpen, setIsDisconnectConfirmOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length || !accessToken) return;
+    const file = e.target.files[0];
+    
+    if (file.size > 10 * 1024 * 1024) {
+      setError('이미지 파일 크기는 10MB를 초과할 수 없습니다.');
+      return;
+    }
+
+    setUploadingImage(true);
+    setStatus(null);
+    setError(null);
+
+    const performUpload = async (token: string) => {
+      await api.uploadProfileImage(token, file);
+      await fetchUser();
+      setStatus('프로필 이미지가 변경되었습니다.');
+    };
+
+    try {
+      await performUpload(accessToken);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+           const newToken = useAuthStore.getState().accessToken;
+           if (newToken) {
+              try {
+                await performUpload(newToken);
+              } catch (retryErr: any) {
+                 setError(retryErr.message || '프로필 이미지 변경에 실패했습니다.');
+              }
+              return;
+           }
+        }
+        logout();
+        return;
+      }
+      setError(err.message || '프로필 이미지 변경에 실패했습니다.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,7 +230,7 @@ const MyPage = () => {
       <h1 className="text-2xl font-bold mb-6">마이페이지</h1>
 
       {/* User Info Card */}
-      <div className="glass-card rounded-lg p-5 mb-4">
+      <div className="glass-card rounded-lg p-5 mb-4 relative">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold">계정 정보</h2>
           {!editMode && (
@@ -196,6 +241,45 @@ const MyPage = () => {
               수정
             </button>
           )}
+        </div>
+
+        {/* Profile Image Section */}
+        <div className="flex flex-col items-center mb-6">
+            <div className="relative group w-24 h-24 rounded-full overflow-hidden bg-gray-200 cursor-pointer shadow-md" onClick={() => document.getElementById('profile-upload')?.click()}>
+                {user.profile_image_url ? (
+                    <img 
+                        src={user.profile_image_url.startsWith('http') ? user.profile_image_url : `/api${user.profile_image_url}`} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.parentElement?.querySelector('.fallback-avatar');
+                            if (fallback) fallback.classList.remove('hidden');
+                        }}
+                    />
+                ) : null}
+                
+                <div className={`fallback-avatar w-full h-full flex items-center justify-center text-gray-500 bg-gray-300 absolute inset-0 ${user.profile_image_url ? 'hidden' : ''}`}>
+                    <span className="text-2xl font-bold">{user.nickname?.[0]}</span>
+                </div>
+
+                <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-white text-xs font-semibold">편집</span>
+                </div>
+                {uploadingImage && (
+                    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-10">
+                        <span className="text-white text-xs">업로드 중...</span>
+                    </div>
+                )}
+            </div>
+            <input 
+                type="file" 
+                id="profile-upload" 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleProfileImageChange} 
+            />
+            <p className="text-xs text-text-sub mt-2">프로필 사진 클릭하여 변경</p>
         </div>
 
         {editMode ? (

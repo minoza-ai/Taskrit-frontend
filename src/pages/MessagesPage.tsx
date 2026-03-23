@@ -805,21 +805,51 @@ const MessagesPage = () => {
                     : 'hover:bg-surface-2/50'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1 min-w-0">
-                    <span className="font-medium text-sm truncate">{roomName(conv)}</span>
-                    {getOtherUser(conv)?.wallet_address && <VerifiedIcon />}
-                  </div>
-                  <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
+               <div className="flex gap-3 items-center">
+                <div className="w-10 h-10 rounded-full bg-surface-3 flex-shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
+                   {(() => {
+                        const targetUser = getOtherUser(conv);
+                        if (targetUser?.profile_image_url) {
+                            return (
+                                <>
+                                <img
+                                    src={targetUser.profile_image_url.startsWith('http') ? targetUser.profile_image_url : `/api${targetUser.profile_image_url}`}
+                                    alt="Profile"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.remove('hidden');
+                                        e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.add('flex');
+                                    }}
+                                />
+                                <span className="fallback-initial hidden w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold">
+                                    {targetUser.nickname?.[0] || conv.room_name?.[0] || '?'}
+                                </span>
+                                </>
+                            );
+                        }
+                        return targetUser?.nickname?.[0] || conv.room_name?.[0] || '?';
+                   })()}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
-                  {(conv.unread_count || 0) > 0 && (
-                    <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
-                      {conv.unread_count}
-                    </span>
-                  )}
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1 min-w-0">
+                        <span className="font-medium text-sm truncate">{roomName(conv)}</span>
+                        {getOtherUser(conv)?.wallet_address && <VerifiedIcon />}
+                    </div>
+                    <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
+                    {(conv.unread_count || 0) > 0 && (
+                        <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
+                        {conv.unread_count}
+                        </span>
+                    )}
+                    </div>
                 </div>
+               </div>
               </button>
             ))}
           </div>

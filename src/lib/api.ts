@@ -35,8 +35,9 @@ async function request<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(!isFormData && { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string> || {}),
   };
 
@@ -178,6 +179,7 @@ export interface UserProfile {
   user_id: string;
   nickname: string;
   wallet_address: string | null;
+  profile_image_url?: string;
   created_at: number;
 }
 
@@ -198,6 +200,16 @@ export async function updateMe(
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(body),
+  });
+}
+
+export async function uploadProfileImage(token: string, file: File): Promise<UserProfile> {
+  const formData = new FormData();
+  formData.append('profile_image', file);
+  return request('/user/me/profile-image', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: formData,
   });
 }
 
@@ -355,6 +367,7 @@ export interface ChatUser {
   user_uuid: string;
   user_id: string;
   nickname: string;
+  profile_image_url?: string;
   wallet_address?: string;
 }
 
