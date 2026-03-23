@@ -353,6 +353,7 @@ export interface ChatUser {
   user_uuid: string;
   user_id: string;
   nickname: string;
+  wallet_address?: string;
 }
 
 export interface ChatMessage {

@@ -50,6 +50,8 @@ const UserIcon = () => {
   );
 };
 
+import VerifiedIcon from './VerifiedIcon';
+
 const BellIcon = () => {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -274,7 +276,10 @@ const AppLayout = () => {
               Taskrit
             </button>
             {user && (
-              <span className="text-xs text-text-hint font-normal truncate max-w-24 md:max-w-none">{user.nickname}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-text-hint font-normal truncate max-w-24 md:max-w-none">{user.nickname}</span>
+                {user.wallet_address && <VerifiedIcon />}
+              </div>
             )}
           </div>
 

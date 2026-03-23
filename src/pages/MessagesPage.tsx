@@ -15,6 +15,7 @@ import {
   type ChatRoom,
   type ChatUser,
 } from '../lib/api';
+import VerifiedIcon from '../components/VerifiedIcon';
 
 const MessagesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -285,16 +286,22 @@ const MessagesPage = () => {
     clearLongPressTimer();
   };
 
+  const getOtherUser = (room: ChatRoom): ChatUser | null => {
+    if (room.room_type === 'team') return null;
+
+    const myUuid = user?.user_uuid;
+    if (!myUuid) return null;
+
+    const otherUuid = room.members.find((memberUuid) => memberUuid !== myUuid);
+    if (!otherUuid) return null;
+
+    return chatUsers.find((u) => u.user_uuid === otherUuid) || null;
+  };
+
   const roomName = (room: ChatRoom): string => {
     if (room.room_type === 'team') return room.room_name;
 
-    const myUuid = user?.user_uuid;
-    if (!myUuid) return room.room_name || '1:1 채팅';
-
-    const otherUuid = room.members.find((memberUuid) => memberUuid !== myUuid);
-    if (!otherUuid) return room.room_name || '1:1 채팅';
-
-    const otherUser = chatUsers.find((u) => u.user_uuid === otherUuid);
+    const otherUser = getOtherUser(room);
     if (!otherUser) return room.room_name || '1:1 채팅';
 
     return otherUser.nickname;
@@ -764,13 +771,16 @@ const MessagesPage = () => {
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm">{roomName(conv)}</span>
-                  <span className="text-[10px] text-text-hint">{conv.last_message_time || ''}</span>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="font-medium text-sm truncate">{roomName(conv)}</span>
+                    {getOtherUser(conv)?.wallet_address && <VerifiedIcon />}
+                  </div>
+                  <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time || ''}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
                   {(conv.unread_count || 0) > 0 && (
-                    <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                    <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
                       {conv.unread_count}
                     </span>
                   )}
@@ -804,6 +814,7 @@ const MessagesPage = () => {
                   <span className="font-semibold text-sm truncate">
                     {selectedRoom ? roomName(selectedRoom) : '채팅'}
                   </span>
+                  {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon />}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button
