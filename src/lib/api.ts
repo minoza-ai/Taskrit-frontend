@@ -472,3 +472,43 @@ export async function markRoomAsRead(
     body: JSON.stringify({ last_read_message_id }),
   });
 }
+
+/* ====== Assets ====== */
+
+export interface Asset {
+  asset_uuid: string;
+  name: string;
+  description: string;
+  file_url: string;
+  created_at: string;
+}
+
+export async function createAsset(
+  token: string,
+  data: { name: string; description: string; file: File }
+): Promise<Asset> {
+  const formData = new FormData();
+  formData.append('name', data.name);
+  formData.append('description', data.description);
+  formData.append('file', data.file);
+  // request handles adding Authorization header, but clears Content-Type for FormData
+  return request('/assets', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: formData,
+  });
+}
+
+export async function getMyAssets(token: string): Promise<Asset[]> {
+  return request('/assets/my', {
+    method: 'GET',
+    headers: authHeaders(token),
+  });
+}
+
+export async function deleteAsset(token: string, asset_uuid: string): Promise<void> {
+  return request(`/assets/${asset_uuid}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+}

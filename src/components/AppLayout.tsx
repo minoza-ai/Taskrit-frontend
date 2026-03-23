@@ -50,6 +50,14 @@ const UserIcon = () => {
   );
 };
 
+const AssetIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+  </svg>
+);
+
 import VerifiedIcon from './VerifiedIcon';
 
 const BellIcon = () => {
@@ -66,6 +74,7 @@ const navItems = [
   { to: '/projects', label: '프로젝트', icon: ProjectIcon },
   { to: '/marketplace', label: '마켓', icon: MarketIcon },
   { to: '/messages', label: '메시지', icon: MessageIcon },
+  { to: '/my/assets', label: '내 자산', icon: AssetIcon },
   { to: '/mypage', label: '마이페이지', icon: UserIcon },
 ];
 

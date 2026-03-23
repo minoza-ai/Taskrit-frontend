@@ -14,6 +14,7 @@ import WorkspacePage from './pages/WorkspacePage';
 import MarketplacePage from './pages/MarketplacePage';
 import MembershipPage from './pages/MembershipPage';
 import MessagesPage from './pages/MessagesPage';
+import MyAssetsPage from './pages/MyAssetsPage';
 import AppLayout from './components/AppLayout';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -45,6 +46,7 @@ const App = () => {
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/mypage" element={<MyPage />} />
+        <Route path="/my/assets" element={<MyAssetsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/new" element={<ProjectCreatePage />} />
