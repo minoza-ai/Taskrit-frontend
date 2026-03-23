@@ -76,6 +76,7 @@ type ChatNotification = {
   preview: string;
   createdAt: string;
   seen: boolean;
+  senderProfileImage?: string;
 };
 
 const AppLayout = () => {
@@ -200,6 +201,7 @@ const AppLayout = () => {
               preview: (payload.message?.text as string) || '새 메시지가 도착했습니다.',
               createdAt: (payload.message?.created_at as string) || new Date().toISOString(),
               seen: false,
+              senderProfileImage: payload.message?.sender_profile_image as string | undefined,
             },
             ...prev,
           ].slice(0, 30));
@@ -332,11 +334,34 @@ const AppLayout = () => {
                         <button
                           key={item.id}
                           onClick={() => moveToNotifiedRoom(item)}
-                          className="w-full text-left px-2 py-2 rounded-lg hover:bg-hover transition-colors"
+                          className="w-full text-left px-2 py-2 rounded-lg hover:bg-hover transition-colors flex items-start gap-3"
                         >
-                          <div className="text-xs font-semibold text-text truncate">{item.roomName}</div>
-                          <div className="text-xs text-text-sub truncate mt-0.5">{item.preview}</div>
-                          <div className="text-[10px] text-text-hint mt-1">{item.createdAt}</div>
+                          <div className="w-10 h-10 flex-shrink-0 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm">
+                            {item.senderProfileImage ? (
+                                <img
+                                    src={item.senderProfileImage.startsWith('http') ? item.senderProfileImage : `/api${item.senderProfileImage}`}
+                                    alt={item.roomName}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        const fb = e.currentTarget.parentElement?.querySelector('.fallback-avatar');
+                                        if (fb) fb.classList.remove('hidden');
+                                        if (fb) fb.classList.add('flex');
+                                    }}
+                                />
+                            ) : null}
+                            <div className={`fallback-avatar w-full h-full items-center justify-center bg-surface-3 text-text-sub ${item.senderProfileImage ? 'hidden' : 'flex'}`}>
+                                {item.roomName?.[0] || '?'}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold text-text truncate">{item.roomName}</div>
+                            <div className="text-xs text-text-sub truncate mt-0.5">{item.preview}</div>
+                            <div className="text-[10px] text-text-hint mt-1">{new Date(item.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                          </div>
+                          {!item.seen && (
+                            <div className="w-2 h-2 rounded-full bg-active mt-2 shrink-0"></div>
+                          )}
                         </button>
                       ))
                     )}
