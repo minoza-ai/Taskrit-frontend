@@ -810,7 +810,7 @@ const MessagesPage = () => {
                     <span className="font-medium text-sm truncate">{roomName(conv)}</span>
                     {getOtherUser(conv)?.wallet_address && <VerifiedIcon />}
                   </div>
-                  <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time || ''}</span>
+                  <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
