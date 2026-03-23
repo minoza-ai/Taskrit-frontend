@@ -19,6 +19,7 @@ const MyPage = () => {
   const updateUser = useAuthStore((s) => s.updateUser);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const fetchUser = useAuthStore((s) => s.fetchUser);
+  const setUser = useAuthStore((s) => s.setUser);
 
   const [editMode, setEditMode] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
@@ -50,8 +51,8 @@ const MyPage = () => {
     setError(null);
 
     const performUpload = async (token: string) => {
-      await api.uploadProfileImage(token, file);
-      await fetchUser();
+      const updatedUser = await api.uploadProfileImage(token, file);
+      setUser(updatedUser);
       setStatus('프로필 이미지가 변경되었습니다.');
     };
 

@@ -15,6 +15,7 @@ interface AuthState {
   updateUser: (data: { nickname?: string; password?: string }) => Promise<void>;
   deleteAccount: () => Promise<void>;
   setTokens: (tokens: TokenResponse) => void;
+  setUser: (user: UserProfile) => void;
   tryRefresh: () => Promise<boolean>;
 }
 
@@ -43,6 +44,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setTokens: (tokens: TokenResponse) => {
     saveTokens(tokens.access_token, tokens.refresh_token);
     set({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
+  },
+
+  setUser: (user: UserProfile) => {
+    set({ user });
   },
 
   login: async (user_id, password) => {
