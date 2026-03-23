@@ -11,6 +11,7 @@ import {
   listRoomMessages,
   markRoomAsRead,
   sendRoomMessage,
+  uploadRoomFile,
   type ChatMessage,
   type ChatRoom,
   type ChatUser,
@@ -50,6 +51,13 @@ const MessagesPage = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // File Upload State
+  const [isUploading, setIsUploading] = useState(false);
+  const [optimizeImage, setOptimizeImage] = useState(true);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -595,6 +603,33 @@ const MessagesPage = () => {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedConversation || !accessToken) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setToastMessage('파일 크기는 10MB를 초과할 수 없습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage);
+      setToastMessage('파일이 전송되었습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+      await loadRooms();
+    } catch (err: any) {
+      setToastMessage(err.message || '파일 전송에 실패했습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleDeleteMessage = async (message: ChatMessage) => {
     if (!accessToken) return;
     if (message.sender_uuid !== user?.user_uuid) return;
@@ -953,6 +988,37 @@ const MessagesPage = () => {
                           <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
                             삭제된 메시지입니다.
                           </span>
+                        ) : msg.message_type === 'file' ? (
+                          (() => {
+                            const isImage = msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
+                            const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
+                            
+                            if (isImage) {
+                              return (
+                                <div className="cursor-pointer group relative -m-1" onClick={() => setViewingImage(fileUrl)}>
+                                  <img 
+                                    src={fileUrl} 
+                                    alt={msg.file_name || '첨부 이미지'} 
+                                    className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5" 
+                                    loading="lazy"
+                                  />
+                                </div>
+                              );
+                            }
+                            return (
+                               <a 
+                                href={fileUrl} 
+                                download={msg.file_name} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
+                              </a>
+                            );
+                          })()
                         ) : searchQuery && msg.text ? (
                           <span>{highlightSearchQuery(msg.text)}</span>
                         ) : (
@@ -1108,7 +1174,7 @@ const MessagesPage = () => {
               </div>
 
               {/* Input */}
-              <div className="p-3 border-t border-border">
+              <div className="p-3 border-t border-border bg-surface">
                 {editingMessageId && (
                   <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-between border border-blue-200 dark:border-blue-800/30">
                     <span className="text-xs text-text font-medium">메시지 수정 중</span>
@@ -1121,7 +1187,35 @@ const MessagesPage = () => {
                     </button>
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div className="flex flex-col items-center gap-0.5">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="p-2 rounded-full text-text-hint hover:text-text hover:bg-surface-2 transition-colors disabled:opacity-50"
+                      title="파일 첨부"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                    </button>
+                    <label className="flex items-center gap-1 cursor-pointer" title="이미지 최적화 전송">
+                      <input
+                        type="checkbox"
+                        checked={optimizeImage}
+                        onChange={(e) => setOptimizeImage(e.target.checked)}
+                        className="w-3 h-3 rounded border-border text-blue-500 focus:ring-0"
+                      />
+                      <span className="text-[9px] text-text-hint">{optimizeImage ? '⚡️' : 'Raw'}</span>
+                    </label>
+                  </div>
+
                   <input
                     type="text"
                     value={newMessage}
@@ -1129,7 +1223,8 @@ const MessagesPage = () => {
                     onCompositionStart={() => setIsComposingMessage(true)}
                     onCompositionEnd={() => setIsComposingMessage(false)}
                     onKeyDown={handleMessageInputKeyDown}
-                    placeholder="메시지를 입력하세요..."
+                    placeholder={isUploading ? "파일 업로드 중..." : "메시지를 입력하세요..."}
+                    readOnly={isUploading}
                     className="glass-input flex-1 py-2.5 px-4 rounded-full text-sm"
                   />
                   <button
@@ -1148,6 +1243,26 @@ const MessagesPage = () => {
           )}
         </div>
       </div>
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <button 
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+            onClick={() => setViewingImage(null)}
+          >
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <img 
+            src={viewingImage} 
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            alt="Full size preview"
+            onClick={(e) => e.stopPropagation()}
+            loading="lazy"
+          />
+        </div>
+      )}
     </div>
   );
 };

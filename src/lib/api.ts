@@ -61,8 +61,10 @@ async function chatRequest<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const url = `${CHAT_API_BASE}${path}`;
+  const isFormData = options.body instanceof FormData;
+  
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(!isFormData && { 'Content-Type': 'application/json' }),
     Authorization: `Bearer ${token}`,
     ...(options.headers as Record<string, string> || {}),
   };
@@ -368,6 +370,7 @@ export interface ChatMessage {
   file_name?: string | null;
   saved_filename?: string | null;
   file_url?: string | null;
+  mime_type?: string | null;
   created_at: string;
   edited_at?: string;
   unread_member_count?: number;
@@ -375,6 +378,29 @@ export interface ChatMessage {
 
 export async function listMyChatRooms(token: string): Promise<ChatRoom[]> {
   return chatRequest('/users/me/rooms', token);
+}
+
+export async function uploadRoomFile(
+  token: string,
+  roomId: string,
+  file: File,
+  optimize: boolean = true
+): Promise<{ message: string; message_data: ChatMessage }> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // optimize is a query param
+    const path = `/rooms/${roomId}/files?optimize=${optimize}`;
+    
+    return await chatRequest(path, token, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch (error) {
+    console.error('File upload failed:', error);
+    throw error;
+  }
 }
 
 export async function listChatUsers(token: string): Promise<ChatUser[]> {
