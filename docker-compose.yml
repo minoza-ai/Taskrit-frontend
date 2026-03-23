@@ -5,3 +5,9 @@ services:
     ports:
       - "${SERVER_PORT:-80}:80"
     restart: unless-stopped
+    networks:
+      - taskrit-network
+
+networks:
+  taskrit-network:
+    external: true

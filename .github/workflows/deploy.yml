@@ -90,8 +90,12 @@ jobs:
             docker stop "${{ env.CONTAINER_NAME }}" || true
             docker rm "${{ env.CONTAINER_NAME }}" || true
 
+            # Ensure network exists
+            docker network create "taskrit-network" || true
+
             docker run -d \
               --name "${{ env.CONTAINER_NAME }}" \
+              --network "taskrit-network" \
               --restart unless-stopped \
               -p "${{ secrets.SERVER_PORT }}:${{ env.CONTAINER_PORT }}" \
               "${{ env.IMAGE_NAME }}:latest"
