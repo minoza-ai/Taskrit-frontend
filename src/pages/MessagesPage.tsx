@@ -946,85 +946,93 @@ const MessagesPage = () => {
                       )}
 
                       {/* 메시지 내용 (말풍선) */}
-                      <div
-                        onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
-                        onTouchEnd={handleMessageTouchEnd}
-                        onTouchMove={handleMessageTouchEnd}
-                        className={`relative px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full shadow-sm ${
-                          isMe
-                            ? 'bg-blue-500 text-white rounded-br-sm text-left'
-                            : isLightTheme
-                              ? 'bg-[#F7F7F8] text-black rounded-bl-sm text-left border border-[#E3E3E6]'
-                              : 'bg-[#2C2C2E] text-gray-200 rounded-bl-sm text-left border border-gray-700'
-                        }`}
-                        // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
-                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                      >
-                        {/* 말풍선 꼬리 추가 */}
-                        {isMe && (
-                          <svg
-                            className="absolute bottom-0 -right-2 w-3 h-4 text-blue-500"
-                            viewBox="0 0 12 16"
-                            fill="currentColor"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path d="M0 16C5 16 12 12 12 0C12 8 8 16 0 16Z" />
-                          </svg>
-                        )}
-                        {!isMe && (
-                          <svg
-                            className={`absolute bottom-0 -left-2 w-3 h-4 ${
-                              isLightTheme ? 'text-[#F7F7F8]' : 'text-[#2C2C2E]'
+                      {(() => {
+                        const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
+                        return (
+                          <div
+                            onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
+                            onTouchEnd={handleMessageTouchEnd}
+                            onTouchMove={handleMessageTouchEnd}
+                            className={`relative leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full ${
+                              isImageFile 
+                                ? 'bg-transparent text-left' 
+                                : `px-4 py-2.5 rounded-2xl shadow-sm ${
+                                    isMe
+                                      ? 'bg-blue-500 text-white rounded-br-sm text-left'
+                                      : isLightTheme
+                                        ? 'bg-[#F7F7F8] text-black rounded-bl-sm text-left border border-[#E3E3E6]'
+                                        : 'bg-[#2C2C2E] text-gray-200 rounded-bl-sm text-left border border-gray-700'
+                                  }`
                             }`}
-                            viewBox="0 0 12 16"
-                            fill="currentColor"
-                            xmlns="http://www.w3.org/2000/svg"
+                            // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
+                            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                           >
-                            <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
-                          </svg>
-                        )}
-
-                        {isDeleted ? (
-                          <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
-                            삭제된 메시지입니다.
-                          </span>
-                        ) : msg.message_type === 'file' ? (
-                          (() => {
-                            const isImage = msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
-                            const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
-                            
-                            if (isImage) {
-                              return (
-                                <div className="cursor-pointer group relative -m-1" onClick={() => setViewingImage(fileUrl)}>
-                                  <img 
-                                    src={fileUrl} 
-                                    alt={msg.file_name || '첨부 이미지'} 
-                                    className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5" 
-                                    loading="lazy"
-                                  />
-                                </div>
-                              );
-                            }
-                            return (
-                               <a 
-                                href={fileUrl} 
-                                download={msg.file_name} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className={`flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
-                                onClick={(e) => e.stopPropagation()}
+                            {/* 말풍선 꼬리 (이미지가 아닐 때만 표시) */}
+                            {!isImageFile && isMe && (
+                              <svg
+                                className="absolute bottom-0 -right-2 w-3 h-4 text-blue-500"
+                                viewBox="0 0 12 16"
+                                fill="currentColor"
+                                xmlns="http://www.w3.org/2000/svg"
                               >
-                                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
-                              </a>
-                            );
-                          })()
-                        ) : searchQuery && msg.text ? (
-                          <span>{highlightSearchQuery(msg.text)}</span>
-                        ) : (
-                          msg.text
-                        )}
-                      </div>
+                                <path d="M0 16C5 16 12 12 12 0C12 8 8 16 0 16Z" />
+                              </svg>
+                            )}
+                            {!isImageFile && !isMe && (
+                              <svg
+                                className={`absolute bottom-0 -left-2 w-3 h-4 ${
+                                  isLightTheme ? 'text-[#F7F7F8]' : 'text-[#2C2C2E]'
+                                }`}
+                                viewBox="0 0 12 16"
+                                fill="currentColor"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
+                              </svg>
+                            )}
+
+                            {isDeleted ? (
+                              <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
+                                삭제된 메시지입니다.
+                              </span>
+                            ) : msg.message_type === 'file' ? (
+                              (() => {
+                                const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
+                                
+                                if (isImageFile) {
+                                  return (
+                                    <div className="cursor-pointer group relative" onClick={() => setViewingImage(fileUrl)}>
+                                      <img 
+                                        src={fileUrl} 
+                                        alt={msg.file_name || '첨부 이미지'} 
+                                        className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5" 
+                                        loading="lazy"
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return (
+                                   <a 
+                                    href={fileUrl} 
+                                    download={msg.file_name} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                    <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
+                                  </a>
+                                );
+                              })()
+                            ) : searchQuery && msg.text ? (
+                              <span>{highlightSearchQuery(msg.text)}</span>
+                            ) : (
+                              msg.text
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* 상대가 보낸 메시지의 시간 */}
                       {!isMe && (
