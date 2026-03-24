@@ -61,6 +61,7 @@ const MessagesPage = () => {
   const messageInputRef = useRef<HTMLInputElement>(null);
 
   const optimizeImage = useChatSettingsStore((s) => s.optimizeUploadedImages);
+  const messageStyle = useChatSettingsStore((s) => s.messageStyle);
 
   const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
 
@@ -331,6 +332,106 @@ const MessagesPage = () => {
     if (!otherUser) return room.room_name || '1:1 채팅';
 
     return otherUser.nickname;
+  };
+
+  const getUserByUuid = (userUuid: string) => {
+    if (userUuid === user?.user_uuid) {
+      return {
+        nickname: user?.nickname || '나',
+        profile_image_url: user?.profile_image_url,
+      };
+    }
+
+    const found = chatUsers.find((u) => u.user_uuid === userUuid);
+    return {
+      nickname: found?.nickname || '알 수 없음',
+      profile_image_url: found?.profile_image_url,
+    };
+  };
+
+  const getSenderDisplayName = (msg: ChatMessage) => {
+    if (msg.sender_uuid === user?.user_uuid) return user?.nickname || '나';
+    return getUserByUuid(msg.sender_uuid).nickname;
+  };
+
+  const getSenderAvatarUrl = (msg: ChatMessage) => {
+    const profileImage = getUserByUuid(msg.sender_uuid).profile_image_url;
+    if (!profileImage) return null;
+    return profileImage.startsWith('http') ? profileImage : `/api${profileImage}`;
+  };
+
+  const renderReplyPreview = (msg: ChatMessage, isMe: boolean, style: 'bubble' | 'irc') => {
+    if (msg.is_deleted || msg.message_type === 'deleted' || !msg.parent_message) {
+      return null;
+    }
+
+    const isBubble = style === 'bubble';
+
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (msg.parent_message) {
+            scrollToMessage(msg.parent_message.message_id);
+          }
+        }}
+        className={`mb-2 pb-1 border-l-[3px] pl-2 text-xs w-full text-left opacity-90 hover:opacity-100 transition-opacity flex flex-col ${isBubble
+          ? (isMe ? 'border-white/40 text-white/90' : 'border-gray-400 text-text-sub')
+          : 'border-border text-text-sub bg-surface-2/60 rounded-r-md py-1'
+          }`}
+      >
+        <span className="font-bold mb-0.5">{(msg.parent_message.sender_uuid === user?.user_uuid) ? '나' : msg.parent_message.sender_name}에게 답장</span>
+        <span className="truncate line-clamp-1 block w-full">
+          {msg.parent_message.is_deleted ? '(삭제된 메시지)' : (msg.parent_message.text || '파일')}
+        </span>
+      </button>
+    );
+  };
+
+  const renderMessageMainContent = (msg: ChatMessage, isMe: boolean, isDeleted: boolean, style: 'bubble' | 'irc') => {
+    const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
+
+    if (isDeleted) {
+      return <span className="italic text-text-hint">삭제된 메시지입니다.</span>;
+    }
+
+    if (msg.message_type === 'file') {
+      const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
+
+      if (isImageFile) {
+        return (
+          <div className="cursor-pointer group relative" onClick={() => setViewingImage(fileUrl)}>
+            <img
+              src={fileUrl}
+              alt={msg.file_name || '첨부 이미지'}
+              className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5"
+              loading="lazy"
+            />
+          </div>
+        );
+      }
+
+      return (
+        <a
+          href={fileUrl}
+          download={msg.file_name}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-2 hover:underline ${style === 'bubble' && isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+          <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
+        </a>
+      );
+    }
+
+    if (searchQuery && msg.text) {
+      return <span>{highlightSearchQuery(msg.text)}</span>;
+    }
+
+    return msg.text;
   };
 
   const formatMessageTime = (iso: string): string => {
@@ -977,6 +1078,70 @@ const MessagesPage = () => {
                     const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
                     const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
                     const isReplyingTarget = replyingMessage?.message_id === msg.message_id;
+                    const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
+
+                    if (messageStyle === 'irc') {
+                      const senderName = getSenderDisplayName(msg);
+                      const senderAvatarUrl = getSenderAvatarUrl(msg);
+
+                      return (
+                        <div
+                          key={msg.message_id}
+                          id={`message-${msg.message_id}`}
+                          onMouseEnter={() => setHoveredMessageId(msg.message_id)}
+                          onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
+                          onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
+                          onTouchEnd={handleMessageTouchEnd}
+                          onTouchMove={handleMessageTouchEnd}
+                          className={`group flex w-full gap-3 rounded-lg px-2 py-1 ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''} ${isReplyingTarget ? 'bg-yellow-100/50 dark:bg-yellow-900/30' : 'hover:bg-surface-2/50'
+                            }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-surface-3 shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
+                            {senderAvatarUrl ? (
+                              <img
+                                src={senderAvatarUrl}
+                                alt={senderName}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.parentElement?.querySelector('.sender-fallback-initial')?.classList.remove('hidden');
+                                  e.currentTarget.parentElement?.querySelector('.sender-fallback-initial')?.classList.add('flex');
+                                }}
+                              />
+                            ) : null}
+                            <span className={`sender-fallback-initial w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold ${senderAvatarUrl ? 'hidden' : 'flex'}`}>
+                              {senderName?.[0] || '?'}
+                            </span>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`text-[15px] font-semibold truncate ${isMe ? 'text-blue-500 dark:text-blue-400' : 'text-text'}`}>
+                                {senderName}
+                              </span>
+                              <span className="text-[11px] text-text-hint shrink-0">{formatMessageTime(msg.created_at)}</span>
+                              {msg.is_edited && <span className="text-[10px] text-text-hint shrink-0">수정됨</span>}
+                              {isMe && (msg.unread_member_count || 0) > 0 && (
+                                <span className="text-[10px] font-semibold text-amber-500 shrink-0">읽지 않음 {msg.unread_member_count}</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
+                                className={`ml-auto w-7 h-7 rounded-full items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors ${menuVisible ? 'flex' : 'hidden group-hover:flex'}`}
+                                aria-label="메시지 액션 열기"
+                              >
+                                ⋯
+                              </button>
+                            </div>
+
+                            <div className="mt-0.5 text-[15px] leading-6 text-text whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                              {renderReplyPreview(msg, isMe, 'irc')}
+                              {renderMessageMainContent(msg, isMe, isDeleted, 'irc')}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
@@ -1013,9 +1178,6 @@ const MessagesPage = () => {
 
                         {/* 메시지 내용 (말풍선) */}
                         {(() => {
-                          const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
-                          const hasParent = !isDeleted && !!msg.parent_message;
-
                           return (
                             <div
                               onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
@@ -1033,25 +1195,7 @@ const MessagesPage = () => {
                               // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
                               style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
-                              {/* 답장 원본 메시지 표시 */}
-                              {hasParent && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (msg.parent_message) {
-                                      scrollToMessage(msg.parent_message.message_id);
-                                    }
-                                  }}
-                                  className={`mb-2 pb-1 border-l-[3px] pl-2 text-xs w-full text-left opacity-90 hover:opacity-100 transition-opacity flex flex-col ${isMe ? 'border-white/40 text-white/90' : 'border-gray-400 text-text-sub'
-                                    }`}
-                                >
-                                  <span className="font-bold mb-0.5">{(msg.parent_message!.sender_uuid === user?.user_uuid) ? '나' : msg.parent_message!.sender_name}에게 답장</span>
-                                  <span className="truncate line-clamp-1 block w-full">
-                                    {msg.parent_message!.is_deleted ? '(삭제된 메시지)' : (msg.parent_message!.text || '파일')}
-                                  </span>
-                                </button>
-                              )}
+                              {renderReplyPreview(msg, isMe, 'bubble')}
 
                               {/* 말풍선 꼬리 (이미지가 아닐 때만 표시) */}
                               {!isImageFile && isMe && (
@@ -1075,46 +1219,7 @@ const MessagesPage = () => {
                                   <path d="M12 16C7 16 0 12 0 0C0 8 4 16 12 16Z" />
                                 </svg>
                               )}
-
-                              {isDeleted ? (
-                                <span className={`italic ${isMe ? 'text-white/80' : 'text-text-hint'}`}>
-                                  삭제된 메시지입니다.
-                                </span>
-                              ) : msg.message_type === 'file' ? (
-                                (() => {
-                                  const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
-
-                                  if (isImageFile) {
-                                    return (
-                                      <div className="cursor-pointer group relative" onClick={() => setViewingImage(fileUrl)}>
-                                        <img
-                                          src={fileUrl}
-                                          alt={msg.file_name || '첨부 이미지'}
-                                          className="max-w-[240px] max-h-[240px] sm:max-w-[320px] sm:max-h-[320px] rounded-lg object-contain bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5"
-                                          loading="lazy"
-                                        />
-                                      </div>
-                                    );
-                                  }
-                                  return (
-                                    <a
-                                      href={fileUrl}
-                                      download={msg.file_name}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={`flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                      <span className="truncate underline underline-offset-2">{msg.file_name || '파일 다운로드'}</span>
-                                    </a>
-                                  );
-                                })()
-                              ) : searchQuery && msg.text ? (
-                                <span>{highlightSearchQuery(msg.text)}</span>
-                              ) : (
-                                msg.text
-                              )}
+                              {renderMessageMainContent(msg, isMe, isDeleted, 'bubble')}
                             </div>
                           );
                         })()}

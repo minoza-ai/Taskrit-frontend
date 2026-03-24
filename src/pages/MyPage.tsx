@@ -23,6 +23,8 @@ const MyPage = () => {
   const setUser = useAuthStore((s) => s.setUser);
   const optimizeUploadedImages = useChatSettingsStore((s) => s.optimizeUploadedImages);
   const setOptimizeUploadedImages = useChatSettingsStore((s) => s.setOptimizeUploadedImages);
+  const messageStyle = useChatSettingsStore((s) => s.messageStyle);
+  const setMessageStyle = useChatSettingsStore((s) => s.setMessageStyle);
 
   const [editMode, setEditMode] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
@@ -405,6 +407,33 @@ const MyPage = () => {
       {/* Chat Settings */}
       <div className="glass-card rounded-lg p-5 mb-4">
         <h2 className="text-base font-semibold mb-4">채팅 설정</h2>
+        <div className="mb-4">
+          <span className="text-sm font-medium text-text block mb-2">채팅 디자인</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMessageStyle('bubble')}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${messageStyle === 'bubble'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-border hover:bg-surface-2'
+                }`}
+            >
+              <span className="text-sm font-semibold block">버블 스타일</span>
+              <span className="text-xs text-text-sub">카카오톡 같은 말풍선 UI</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMessageStyle('irc')}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${messageStyle === 'irc'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-border hover:bg-surface-2'
+                }`}
+            >
+              <span className="text-sm font-semibold block">IRC 스타일</span>
+              <span className="text-xs text-text-sub">디스코드 같은 아바타/닉네임 중심 UI</span>
+            </button>
+          </div>
+        </div>
         <label className="flex items-start gap-3 cursor-pointer select-none">
           <input
             type="checkbox"
