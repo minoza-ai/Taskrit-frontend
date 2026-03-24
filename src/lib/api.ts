@@ -387,6 +387,14 @@ export interface ChatMessage {
   created_at: string;
   edited_at?: string;
   unread_member_count?: number;
+  parent_id?: string | null;
+  parent_message?: {
+    message_id: string;
+    text: string;
+    sender_uuid: string;
+    sender_name: string;
+    is_deleted: boolean;
+  } | null;
 }
 
 export async function listMyChatRooms(token: string): Promise<ChatRoom[]> {
@@ -435,10 +443,10 @@ export async function listRoomMessages(token: string, roomId: string): Promise<C
   return chatRequest(`/rooms/${roomId}/messages`, token);
 }
 
-export async function sendRoomMessage(token: string, roomId: string, text: string): Promise<ChatMessage> {
+export async function sendRoomMessage(token: string, roomId: string, text: string, parentId?: string): Promise<ChatMessage> {
   return chatRequest(`/rooms/${roomId}/messages`, token, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, parent_id: parentId }),
   });
 }
 

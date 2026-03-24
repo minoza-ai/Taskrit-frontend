@@ -49,6 +49,7 @@ const MessagesPage = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => window.innerWidth >= 768);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -590,10 +591,13 @@ const MessagesPage = () => {
     }
 
     // 일반 모드: 메시지 전송
+    const parentId = replyingMessage?.message_id;
+
     setNewMessage('');
     try {
-      const sent = await sendRoomMessage(accessToken, selectedConversation, text);
+      const sent = await sendRoomMessage(accessToken, selectedConversation, text, parentId);
       appendMessageDedup(sent);
+      setReplyingMessage(null);
       requestAnimationFrame(() => {
         scrollMessagesToBottom('smooth');
       });
@@ -683,6 +687,19 @@ const MessagesPage = () => {
   const cancelEditMessage = () => {
     setNewMessage('');
     setEditingMessageId(null);
+  };
+
+  const startReplyMessage = (message: ChatMessage) => {
+    if (message.is_deleted || message.message_type === 'deleted') return;
+    setReplyingMessage(message);
+    setNewMessage('');
+    setEditingMessageId(null);
+    closeActionMenu();
+    document.querySelector('input[type="text"]')?.focus();
+  };
+
+  const cancelReplyMessage = () => {
+    setReplyingMessage(null);
   };
 
   const handleOpenDesktopActionMenu = (
@@ -940,6 +957,7 @@ const MessagesPage = () => {
                     const isMe = msg.sender_uuid === user?.user_uuid;
                     const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
                     const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
+                    const isReplyingTarget = replyingMessage?.message_id === msg.message_id;
 
                     return (
                       <div
@@ -948,7 +966,8 @@ const MessagesPage = () => {
                         onMouseEnter={() => setHoveredMessageId(msg.message_id)}
                         onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
                         className={`flex w-full mb-1 items-end ${isMe ? 'justify-end pl-10' : 'justify-start pr-10'
-                          } ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''}`}
+                          } ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''} ${isReplyingTarget ? 'bg-yellow-100/50 dark:bg-yellow-900/30 rounded-lg px-1 py-1 -mx-1' : ''
+                          }`}
                       >
                         {/* 내가 보낸 메시지의 시간 및 읽음표시 */}
                         {isMe && (
@@ -976,6 +995,8 @@ const MessagesPage = () => {
                         {/* 메시지 내용 (말풍선) */}
                         {(() => {
                           const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
+                          const hasParent = !isDeleted && !!msg.parent_message;
+
                           return (
                             <div
                               onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
@@ -993,6 +1014,26 @@ const MessagesPage = () => {
                               // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
                               style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
+                              {/* 답장 원본 메시지 표시 */}
+                              {hasParent && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (msg.parent_message) {
+                                      scrollToMessage(msg.parent_message.message_id);
+                                    }
+                                  }}
+                                  className={`mb-2 pb-1 border-l-[3px] pl-2 text-xs w-full text-left opacity-90 hover:opacity-100 transition-opacity flex flex-col ${isMe ? 'border-white/40 text-white/90' : 'border-gray-400 text-text-sub'
+                                    }`}
+                                >
+                                  <span className="font-bold mb-0.5">{(msg.parent_message!.sender_uuid === user?.user_uuid) ? '나' : msg.parent_message!.sender_name}에게 답장</span>
+                                  <span className="truncate line-clamp-1 block w-full">
+                                    {msg.parent_message!.is_deleted ? '(삭제된 메시지)' : (msg.parent_message!.text || '파일')}
+                                  </span>
+                                </button>
+                              )}
+
                               {/* 말풍선 꼬리 (이미지가 아닐 때만 표시) */}
                               {!isImageFile && isMe && (
                                 <svg
@@ -1157,6 +1198,13 @@ const MessagesPage = () => {
                               </button>
                               <button
                                 type="button"
+                                onClick={() => startReplyMessage(activeMessage)}
+                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors"
+                              >
+                                답장
+                              </button>
+                              <button
+                                type="button"
                                 disabled={!canDelete}
                                 onClick={() => {
                                   if (activeMessage && activeMessage.sender_uuid === user?.user_uuid) {
@@ -1217,6 +1265,26 @@ const MessagesPage = () => {
                       className="btn-primary px-3 py-1 rounded-full text-xs cursor-pointer"
                     >
                       취소
+                    </button>
+                  </div>
+                )}
+                {replyingMessage && (
+                  <div className="mb-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-between border-l-4 border-purple-500">
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-xs font-bold text-purple-600 dark:text-purple-400 truncate">
+                        {replyingMessage.sender_uuid === user?.user_uuid ? '나' : (chatUsers.find((u) => u.user_uuid === replyingMessage.sender_uuid)?.nickname || '알 수 없음')}에게 답장 중
+                      </span>
+                      <span className="text-xs text-text-hint truncate">
+                        {replyingMessage.is_deleted ? '삭제된 메시지' : (replyingMessage.text || (replyingMessage.message_type === 'file' ? '파일' : '메시지'))}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cancelReplyMessage}
+                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"
+                      title="답장 취소"
+                    >
+                      <svg className="w-4 h-4 text-text-hint" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
                 )}
