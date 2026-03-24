@@ -58,6 +58,7 @@ const MessagesPage = () => {
   const [optimizeImage, setOptimizeImage] = useState(true);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
 
   const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
 
@@ -216,6 +217,20 @@ const MessagesPage = () => {
 
       return () => clearTimeout(resetTimer);
     }, 600); // 스크롤 완료 시간 대기
+  };
+
+  const focusMessageInput = (placeCursorAtEnd = false) => {
+    window.setTimeout(() => {
+      const input = messageInputRef.current;
+      if (!input) return;
+
+      input.focus();
+
+      if (placeCursorAtEnd) {
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+      }
+    }, 0);
   };
 
   const handleMessageScroll = () => {
@@ -681,7 +696,9 @@ const MessagesPage = () => {
 
     setNewMessage(message.text);
     setEditingMessageId(message.message_id);
+    setReplyingMessage(null);
     closeActionMenu();
+    focusMessageInput(true);
   };
 
   const cancelEditMessage = () => {
@@ -695,7 +712,7 @@ const MessagesPage = () => {
     setNewMessage('');
     setEditingMessageId(null);
     closeActionMenu();
-    document.querySelector('input[type="text"]')?.focus();
+    focusMessageInput();
   };
 
   const cancelReplyMessage = () => {
@@ -1262,9 +1279,10 @@ const MessagesPage = () => {
                     <button
                       type="button"
                       onClick={cancelEditMessage}
-                      className="btn-primary px-3 py-1 rounded-full text-xs cursor-pointer"
+                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"
+                      title="수정 취소"
                     >
-                      취소
+                      <svg className="w-4 h-4 text-text-hint" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
                 )}
@@ -1318,6 +1336,7 @@ const MessagesPage = () => {
                   </div>
 
                   <input
+                    ref={messageInputRef}
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
