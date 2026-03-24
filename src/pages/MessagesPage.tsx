@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import { useThemeStore } from '../lib/theme';
+import { useChatSettingsStore } from '../lib/chatSettings';
 import {
   createDmRoom,
   deleteRoomMessage,
@@ -55,10 +56,11 @@ const MessagesPage = () => {
 
   // File Upload State
   const [isUploading, setIsUploading] = useState(false);
-  const [optimizeImage, setOptimizeImage] = useState(true);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+
+  const optimizeImage = useChatSettingsStore((s) => s.optimizeUploadedImages);
 
   const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
 
@@ -1313,27 +1315,16 @@ const MessagesPage = () => {
                     onChange={handleFileUpload}
                     className="hidden"
                   />
-                  <div className="flex flex-col items-center gap-0.5">
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className="p-2 rounded-full text-text-hint hover:text-text hover:bg-surface-2 transition-colors disabled:opacity-50"
-                      title="파일 첨부"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                      </svg>
-                    </button>
-                    <label className="flex items-center gap-1 cursor-pointer" title="이미지 최적화 전송">
-                      <input
-                        type="checkbox"
-                        checked={optimizeImage}
-                        onChange={(e) => setOptimizeImage(e.target.checked)}
-                        className="w-3 h-3 rounded border-border text-blue-500 focus:ring-0"
-                      />
-                      <span className="text-[9px] text-text-hint">{optimizeImage ? '⚡️' : 'Raw'}</span>
-                    </label>
-                  </div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="p-2 rounded-full text-text-hint hover:text-text hover:bg-surface-2 transition-colors disabled:opacity-50"
+                    title="파일 첨부"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                  </button>
 
                   <input
                     ref={messageInputRef}

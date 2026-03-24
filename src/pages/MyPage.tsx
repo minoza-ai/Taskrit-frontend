@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 import PopupModal from '../components/PopupModal';
+import { useChatSettingsStore } from '../lib/chatSettings';
 
 const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
   let binary = '';
@@ -20,6 +21,8 @@ const MyPage = () => {
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const setUser = useAuthStore((s) => s.setUser);
+  const optimizeUploadedImages = useChatSettingsStore((s) => s.optimizeUploadedImages);
+  const setOptimizeUploadedImages = useChatSettingsStore((s) => s.setOptimizeUploadedImages);
 
   const [editMode, setEditMode] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
@@ -397,6 +400,25 @@ const MyPage = () => {
             {walletError}
           </div>
         )}
+      </div>
+
+      {/* Chat Settings */}
+      <div className="glass-card rounded-lg p-5 mb-4">
+        <h2 className="text-base font-semibold mb-4">채팅 설정</h2>
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={optimizeUploadedImages}
+            onChange={(e) => setOptimizeUploadedImages(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-border text-blue-500 focus:ring-0"
+          />
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-text">이미지 업로드 시 용량 최적화</span>
+            <span className="text-xs text-text-sub">
+              켜면 사진을 압축해 빠르게 전송하고, 끄면 원본 화질 그대로 전송합니다.
+            </span>
+          </div>
+        </label>
       </div>
 
       {/* Danger Zone */}
