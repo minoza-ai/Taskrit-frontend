@@ -1127,7 +1127,10 @@ const MessagesPage = () => {
                               <button
                                 type="button"
                                 onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
-                                className={`ml-auto w-7 h-7 rounded-full items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors ${menuVisible ? 'flex' : 'hidden group-hover:flex'}`}
+                                className={`ml-auto w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors transition-opacity ${menuVisible
+                                  ? 'opacity-100 pointer-events-auto'
+                                  : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                                  }`}
                                 aria-label="메시지 액션 열기"
                               >
                                 ⋯
