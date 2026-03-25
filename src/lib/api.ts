@@ -458,8 +458,19 @@ export async function createDmRoom(
   });
 }
 
-export async function listRoomMessages(token: string, roomId: string): Promise<ChatMessage[]> {
-  return chatRequest(`/rooms/${roomId}/messages`, token);
+export async function listRoomMessages(
+  token: string,
+  roomId: string,
+  params?: { limit?: number; before?: string; after?: string }
+): Promise<ChatMessage[]> {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.before) query.set('before', params.before);
+  if (params?.after) query.set('after', params.after);
+
+  const qs = query.toString();
+  const path = qs ? `/rooms/${roomId}/messages?${qs}` : `/rooms/${roomId}/messages`;
+  return chatRequest(path, token);
 }
 
 export async function sendRoomMessage(token: string, roomId: string, text: string, parentId?: string): Promise<ChatMessage> {

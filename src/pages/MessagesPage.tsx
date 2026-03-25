@@ -560,10 +560,29 @@ const MessagesPage = () => {
     setLoadingMessages(true);
     setError(null);
     try {
-      const data = await listRoomMessages(accessToken, roomId);
-      setMessages(data);
+      const pageSize = 100;
+      let allMessages: ChatMessage[] = [];
+      let before: string | undefined;
 
-      const latest = data[data.length - 1];
+      // Load newest page first, then keep fetching older pages until exhausted.
+      while (true) {
+        const page = await listRoomMessages(accessToken, roomId, {
+          limit: pageSize,
+          before,
+        });
+
+        if (!page.length) break;
+
+        allMessages = [...page, ...allMessages];
+
+        if (page.length < pageSize) break;
+
+        before = page[0].message_id;
+      }
+
+      setMessages(allMessages);
+
+      const latest = allMessages[allMessages.length - 1];
       if (latest) {
         void markMessageAsRead(roomId, latest.message_id);
       }
