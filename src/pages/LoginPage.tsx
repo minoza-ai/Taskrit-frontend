@@ -1,10 +1,20 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
+import * as api from '../lib/api';
+
+const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const loginWithWallet = useAuthStore((s) => s.loginWithWallet);
   const isLoading = useAuthStore((s) => s.isLoading);
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +34,39 @@ const LoginPage = () => {
         setError('로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도해주세요.');
       } else {
         setError(err.message || '로그인에 실패했습니다');
+      }
+    }
+  };
+
+  const handleWalletLogin = async () => {
+    setError(null);
+
+    try {
+      if (!window.solana?.isPhantom) {
+        setError('Phantom 지갑 확장 프로그램을 찾을 수 없습니다. 설치 후 다시 시도해주세요.');
+        return;
+      }
+
+      const connectResult = await window.solana.connect();
+      const walletAddress = connectResult.publicKey?.toString() || window.solana.publicKey?.toString();
+
+      if (!walletAddress) {
+        setError('지갑 주소를 확인할 수 없습니다.');
+        return;
+      }
+
+      const { nonce, message } = await api.walletConnectRequest(walletAddress);
+      const encodedMessage = new TextEncoder().encode(message);
+      const signed = await window.solana.signMessage(encodedMessage, 'utf8');
+      const signature = uint8ArrayToBase64(signed.signature);
+
+      await loginWithWallet(walletAddress, signature, nonce, message);
+      navigate('/dashboard');
+    } catch (err: any) {
+      if (err?.status === 429) {
+        setError('로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도해주세요.');
+      } else {
+        setError(err?.message || '지갑 로그인에 실패했습니다.');
       }
     }
   };
@@ -72,6 +115,21 @@ const LoginPage = () => {
           >
             {isLoading ? '로그인 중...' : '로그인'}
           </button>
+
+          <div className="flex items-center gap-2 text-xs text-text-hint">
+            <span className="h-px flex-1 bg-border" />
+            <span>또는</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => void handleWalletLogin()}
+            className="btn-ghost w-full py-3.5 rounded-lg text-[15px] border border-border hover:bg-surface-2 transition-colors disabled:opacity-60"
+          >
+            {isLoading ? '지갑 확인 중...' : 'Phantom 지갑으로 로그인'}
+          </button>
         </form>
 
         <p className="text-center mt-6 text-sm text-text-hint">
@@ -89,3 +147,19 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+
+declare global {
+  interface SolanaProvider {
+    isPhantom?: boolean;
+    publicKey?: { toString(): string };
+    connect: () => Promise<{ publicKey: { toString(): string } }>;
+    signMessage: (
+      message: Uint8Array,
+      display?: 'utf8' | 'hex',
+    ) => Promise<{ signature: Uint8Array }>;
+  }
+
+  interface Window {
+    solana?: SolanaProvider;
+  }
+}

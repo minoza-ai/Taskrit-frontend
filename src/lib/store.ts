@@ -9,6 +9,7 @@ interface AuthState {
   isLoading: boolean;
 
   login: (user_id: string, password: string) => Promise<void>;
+  loginWithWallet: (walletAddress: string, signature: string, nonce: string, message?: string) => Promise<void>;
   register: (user_id: string, nickname: string, password: string) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
@@ -54,6 +55,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const tokens = await api.login(user_id, password);
+      saveTokens(tokens.access_token, tokens.refresh_token);
+      set({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
+      const user = await api.getMe(tokens.access_token);
+      set({ user });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  loginWithWallet: async (walletAddress, signature, nonce, message) => {
+    set({ isLoading: true });
+    try {
+      const tokens = await api.walletLogin(walletAddress, signature, nonce, message, 'base64');
       saveTokens(tokens.access_token, tokens.refresh_token);
       set({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
       const user = await api.getMe(tokens.access_token);

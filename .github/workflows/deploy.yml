@@ -97,6 +97,7 @@ jobs:
               --name "${{ env.CONTAINER_NAME }}" \
               --network "taskrit-network" \
               --restart unless-stopped \
+              -e TZ=Asia/Seoul \
               -p "${{ secrets.SERVER_PORT }}:${{ env.CONTAINER_PORT }}" \
               "${{ env.IMAGE_NAME }}:latest"
           EOF

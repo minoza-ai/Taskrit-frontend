@@ -24,6 +24,8 @@ function translateError(message: string): string {
     'Wallet already connected': '이미 연결된 지갑입니다',
     'Invalid signature': '서명이 유효하지 않습니다',
     'Nonce mismatch': 'Nonce가 일치하지 않습니다',
+    'No account linked to this wallet': '이 지갑에 연결된 계정이 없습니다',
+    'Invalid or expired nonce': 'Nonce가 유효하지 않거나 만료되었습니다',
     '사용할 수 없는 문자열이 포함되어 있습니다': '아이디는 영문, 숫자, 언더스코어, 하이픈만 사용 가능하며 3-32자여야 합니다',
   };
 
@@ -252,6 +254,23 @@ export async function walletConnectConfirm(
   return request('/wallets/connect/confirm', {
     method: 'POST',
     headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function walletLogin(
+  wallet_address: string,
+  signature: string,
+  nonce: string,
+  message?: string,
+  signature_encoding?: 'base58' | 'base64' | 'hex',
+): Promise<TokenResponse> {
+  const body: Record<string, string> = { wallet_address, signature, nonce };
+  if (message) body.message = message;
+  if (signature_encoding) body.signature_encoding = signature_encoding;
+
+  return request('/wallets/login/confirm', {
+    method: 'POST',
     body: JSON.stringify(body),
   });
 }
