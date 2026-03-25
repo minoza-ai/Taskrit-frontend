@@ -972,12 +972,12 @@ const MessagesPage = () => {
 
   return (
     <div className="animate-in h-[calc(100dvh-6.5rem)] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden -mx-4 md:mx-0 -my-4 md:my-0">
-      <h1 className={`text-2xl font-bold mb-4 md:mb-6 pt-3 md:pt-0 px-4 md:px-0 ${mobileView === 'chat' ? 'hidden' : 'block md:block'}`}>메시지</h1>
+      <h1 className={`text-2xl font-bold mb-4 md:mb-6 pt-3 md:pt-0 px-4 md:px-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>메시지</h1>
       {error && <p className="mb-3 text-sm text-error px-4 md:px-0">{error}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-4 flex-1 min-h-0">
         {/* Conversation List */}
-        <div className={`px-4 md:glass-card md:rounded-xl md:p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>
+        <div className={`px-4 bg-surface/50 border border-border md:glass-card rounded-xl md:p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'} md:block`}>
           <div className="mt-3 md:mt-0 mb-3 flex gap-2">
             <input
               type="text"
@@ -1069,7 +1069,7 @@ const MessagesPage = () => {
         </div>
 
         {/* Chat Area */}
-        <div className={`md:col-span-2 md:glass-card md:rounded-xl flex flex-col min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`md:col-span-2 bg-surface/50 border-t border-border md:border md:glass-card md:rounded-xl flex flex-col min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
           {selectedConversation ? (
             <>
               {/* Header */}
