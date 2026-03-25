@@ -79,6 +79,7 @@ const MessagesPage = () => {
   const isSwipeRef = useRef(false);
   const swipeDistanceRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const messageLoadTokenRef = useRef(0);
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -557,27 +558,44 @@ const MessagesPage = () => {
 
   const loadMessages = async (roomId: string) => {
     if (!accessToken) return;
+    const loadToken = ++messageLoadTokenRef.current;
     setLoadingMessages(true);
     setError(null);
     try {
       const pageSize = 100;
+      const initialPageCount = 2;
       let allMessages: ChatMessage[] = [];
       let before: string | undefined;
+      let hasMore = true;
 
-      // Load newest page first, then keep fetching older pages until exhausted.
-      while (true) {
+      // Load 1-2 newest pages first so users can read immediately.
+      for (let i = 0; i < initialPageCount; i += 1) {
         const page = await listRoomMessages(accessToken, roomId, {
           limit: pageSize,
           before,
         });
 
-        if (!page.length) break;
+        if (messageLoadTokenRef.current !== loadToken) {
+          return;
+        }
+
+        if (!page.length) {
+          hasMore = false;
+          break;
+        }
 
         allMessages = [...page, ...allMessages];
 
-        if (page.length < pageSize) break;
+        if (page.length < pageSize) {
+          hasMore = false;
+          break;
+        }
 
         before = page[0].message_id;
+      }
+
+      if (messageLoadTokenRef.current !== loadToken) {
+        return;
       }
 
       setMessages(allMessages);
@@ -590,6 +608,41 @@ const MessagesPage = () => {
       requestAnimationFrame(() => {
         scrollMessagesToBottom('auto');
       });
+
+      setLoadingMessages(false);
+
+      if (!hasMore || !before) {
+        return;
+      }
+
+      // Continue loading older history in background.
+      void (async () => {
+        let cursor = before;
+
+        while (cursor) {
+          const page = await listRoomMessages(accessToken, roomId, {
+            limit: pageSize,
+            before: cursor,
+          });
+
+          if (messageLoadTokenRef.current !== loadToken) {
+            return;
+          }
+
+          if (!page.length) {
+            return;
+          }
+
+          allMessages = [...page, ...allMessages];
+          setMessages(allMessages);
+
+          if (page.length < pageSize) {
+            return;
+          }
+
+          cursor = page[0].message_id;
+        }
+      })();
     } catch (err: any) {
       if (err.status === 401) {
         const refreshed = await tryRefresh();
@@ -599,7 +652,6 @@ const MessagesPage = () => {
         }
       }
       setError(err.message || '메시지를 불러오지 못했습니다.');
-    } finally {
       setLoadingMessages(false);
     }
   };
