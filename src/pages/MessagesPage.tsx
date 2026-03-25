@@ -971,14 +971,14 @@ const MessagesPage = () => {
   };
 
   return (
-    <div className="animate-in h-[calc(100dvh-8.5rem)] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden">
-      <h1 className="text-2xl font-bold mb-4 md:mb-6">메시지</h1>
-      {error && <p className="mb-3 text-sm text-error">{error}</p>}
+    <div className="animate-in h-[calc(100dvh-6.5rem)] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden -mx-4 md:mx-0 -my-4 md:my-0">
+      <h1 className={`text-2xl font-bold mb-4 md:mb-6 pt-3 md:pt-0 px-4 md:px-0 ${mobileView === 'chat' ? 'hidden' : 'block md:block'}`}>메시지</h1>
+      {error && <p className="mb-3 text-sm text-error px-4 md:px-0">{error}</p>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-4 flex-1 min-h-0">
         {/* Conversation List */}
-        <div className={`glass-card rounded-xl p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>
-          <div className="mb-3 flex gap-2">
+        <div className={`px-4 md:glass-card md:rounded-xl md:p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>
+          <div className="mt-3 md:mt-0 mb-3 flex gap-2">
             <input
               type="text"
               value={targetUserId}
@@ -1069,7 +1069,7 @@ const MessagesPage = () => {
         </div>
 
         {/* Chat Area */}
-        <div className={`md:col-span-2 glass-card rounded-xl flex flex-col min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`md:col-span-2 md:glass-card md:rounded-xl flex flex-col min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
           {selectedConversation ? (
             <>
               {/* Header */}
@@ -1077,10 +1077,12 @@ const MessagesPage = () => {
                 <div className="flex items-center gap-2 min-w-0">
                   <button
                     onClick={() => setMobileView('list')}
-                    className="md:hidden btn-ghost px-2 py-1 rounded-md text-sm"
+                    className="md:hidden btn-ghost px-2 py-1 rounded-md"
                     aria-label="채팅방 목록으로 돌아가기"
                   >
-                    뒤로
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
                   </button>
                   <span className="font-semibold text-sm truncate">
                     {selectedRoom ? roomName(selectedRoom) : '채팅'}
