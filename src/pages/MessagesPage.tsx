@@ -1067,18 +1067,19 @@ const MessagesPage = () => {
                 <div
                   ref={messageViewportRef}
                   onScroll={handleMessageScroll}
-                  className="h-full p-3 md:p-4 overflow-y-auto flex flex-col gap-3"
+                  className={`h-full p-3 md:p-4 overflow-y-auto flex flex-col ${messageStyle === 'irc' ? 'gap-0' : 'gap-3'}`}
                 >
                   {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
                   {searchQuery && filteredMessages.length === 0 && (
                     <div className="text-center py-8 text-text-hint text-sm">검색 결과가 없습니다</div>
                   )}
-                  {filteredMessages.map((msg) => {
+                  {filteredMessages.map((msg, index) => {
                     const isMe = msg.sender_uuid === user?.user_uuid;
                     const isDeleted = msg.is_deleted || msg.message_type === 'deleted';
                     const menuVisible = hoveredMessageId === msg.message_id || actionMenuState?.messageId === msg.message_id;
                     const isReplyingTarget = replyingMessage?.message_id === msg.message_id;
                     const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
+                    const isPreviousSameSender = index > 0 && filteredMessages[index - 1].sender_uuid === msg.sender_uuid;
 
                     if (messageStyle === 'irc') {
                       const senderName = getSenderDisplayName(msg);
@@ -1093,41 +1094,54 @@ const MessagesPage = () => {
                           onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
                           onTouchEnd={handleMessageTouchEnd}
                           onTouchMove={handleMessageTouchEnd}
-                          className={`group flex w-full gap-3 rounded-lg px-2 py-1 ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''} ${isReplyingTarget ? 'bg-yellow-100/50 dark:bg-yellow-900/30' : 'hover:bg-surface-2/50'
+                          className={`group flex w-full gap-3 rounded-lg px-2 py-0 ${!isPreviousSameSender && index > 0 ? 'mt-2' : ''} ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''} ${isReplyingTarget ? 'bg-yellow-100/50 dark:bg-yellow-900/30' : 'hover:bg-surface-2/50'
                             }`}
                         >
-                          <div className="w-10 h-10 rounded-full bg-surface-3 shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
-                            {senderAvatarUrl ? (
-                              <img
-                                src={senderAvatarUrl}
-                                alt={senderName}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                  e.currentTarget.parentElement?.querySelector('.sender-fallback-initial')?.classList.remove('hidden');
-                                  e.currentTarget.parentElement?.querySelector('.sender-fallback-initial')?.classList.add('flex');
-                                }}
-                              />
-                            ) : null}
-                            <span className={`sender-fallback-initial w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold ${senderAvatarUrl ? 'hidden' : 'flex'}`}>
-                              {senderName?.[0] || '?'}
-                            </span>
-                          </div>
+                          {isPreviousSameSender ? (
+                            <div className="w-10 shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-surface-3 shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
+                              {senderAvatarUrl ? (
+                                <img
+                                  src={senderAvatarUrl}
+                                  alt={senderName}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.parentElement?.querySelector('.sender-fallback-initial')?.classList.remove('hidden');
+                                    e.currentTarget.parentElement?.querySelector('.sender-fallback-initial')?.classList.add('flex');
+                                  }}
+                                />
+                              ) : null}
+                              <span className={`sender-fallback-initial w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold ${senderAvatarUrl ? 'hidden' : 'flex'}`}>
+                                {senderName?.[0] || '?'}
+                              </span>
+                            </div>
+                          )}
 
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-[15px] font-semibold truncate ${isMe ? 'text-blue-500 dark:text-blue-400' : 'text-text'}`}>
-                                {senderName}
-                              </span>
-                              <span className="text-[11px] text-text-hint shrink-0">{formatMessageTime(msg.created_at)}</span>
-                              {msg.is_edited && <span className="text-[10px] text-text-hint shrink-0">수정됨</span>}
-                              {isMe && (msg.unread_member_count || 0) > 0 && (
-                                <span className="text-[10px] font-semibold text-amber-500 shrink-0">읽지 않음 {msg.unread_member_count}</span>
-                              )}
+                            {!isPreviousSameSender && (
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-[15px] font-semibold truncate ${isMe ? 'text-blue-500 dark:text-blue-400' : 'text-text'}`}>
+                                  {senderName}
+                                </span>
+                                <span className="text-[11px] text-text-hint shrink-0">{formatMessageTime(msg.created_at)}</span>
+                                {msg.is_edited && <span className="text-[10px] text-text-hint shrink-0">수정됨</span>}
+                                {isMe && (msg.unread_member_count || 0) > 0 && (
+                                  <span className="text-[10px] font-semibold text-amber-500 shrink-0">읽지 않음 {msg.unread_member_count}</span>
+                                )}
+                              </div>
+                            )}
+
+                            <div className={`flex items-center justify-between ${isPreviousSameSender ? 'gap-2' : 'gap-2'}`}>
+                              <div className="flex-1 min-w-0 text-[15px] leading-6 text-text whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                {renderReplyPreview(msg, isMe, 'irc')}
+                                {renderMessageMainContent(msg, isMe, isDeleted, 'irc')}
+                              </div>
                               <button
                                 type="button"
                                 onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
-                                className={`ml-auto w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors transition-opacity ${menuVisible
+                                className={`w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors transition-opacity shrink-0 ${menuVisible
                                   ? 'opacity-100 pointer-events-auto'
                                   : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
                                   }`}
@@ -1135,11 +1149,6 @@ const MessagesPage = () => {
                               >
                                 ⋯
                               </button>
-                            </div>
-
-                            <div className="mt-0.5 text-[15px] leading-6 text-text whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                              {renderReplyPreview(msg, isMe, 'irc')}
-                              {renderMessageMainContent(msg, isMe, isDeleted, 'irc')}
                             </div>
                           </div>
                         </div>
