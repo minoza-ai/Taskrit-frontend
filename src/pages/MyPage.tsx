@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 import PopupModal from '../components/PopupModal';
@@ -41,6 +41,45 @@ const MyPage = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDisconnectConfirmOpen, setIsDisconnectConfirmOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [otpEnabled, setOtpEnabled] = useState<boolean>(!!user?.otp_enabled);
+  const [otpPending, setOtpPending] = useState(false);
+  const [otpSetupData, setOtpSetupData] = useState<api.OtpSetupResponse | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpStatus, setOtpStatus] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+
+  const loadOtpStatus = async () => {
+    if (!accessToken) return;
+
+    try {
+      const statusData = await api.getOtpStatus(accessToken);
+      setOtpEnabled(statusData.otp_enabled);
+      setOtpPending(statusData.otp_pending);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+
+        const refreshedToken = useAuthStore.getState().accessToken;
+        if (!refreshedToken) {
+          logout();
+          return;
+        }
+
+        const statusData = await api.getOtpStatus(refreshedToken);
+        setOtpEnabled(statusData.otp_enabled);
+        setOtpPending(statusData.otp_pending);
+      }
+    }
+  };
+
+  useEffect(() => {
+    void loadOtpStatus();
+  }, [accessToken]);
 
   const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length || !accessToken) return;
@@ -212,6 +251,141 @@ const MyPage = () => {
       setWalletError(err.message || '지갑 연동 해제에 실패했습니다');
     } finally {
       setWalletBusy(false);
+    }
+  };
+
+  const handleSetupOtp = async () => {
+    if (!accessToken) return;
+    setOtpBusy(true);
+    setOtpError(null);
+    setOtpStatus(null);
+
+    try {
+      const setupData = await api.setupOtp(accessToken);
+      setOtpSetupData(setupData);
+      setOtpPending(true);
+      setOtpStatus('OTP 설정을 시작했습니다. 앱에서 QR을 스캔한 뒤 인증 코드를 입력하세요.');
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+
+        const refreshedToken = useAuthStore.getState().accessToken;
+        if (!refreshedToken) {
+          logout();
+          return;
+        }
+
+        const setupData = await api.setupOtp(refreshedToken);
+        setOtpSetupData(setupData);
+        setOtpPending(true);
+        setOtpStatus('OTP 설정을 시작했습니다. 앱에서 QR을 스캔한 뒤 인증 코드를 입력하세요.');
+      } else {
+        setOtpError(err.message || 'OTP 설정 시작에 실패했습니다.');
+      }
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const handleEnableOtp = async () => {
+    if (!accessToken) return;
+    const code = otpCode.trim();
+    if (!code) {
+      setOtpError('OTP 코드를 입력해주세요.');
+      return;
+    }
+
+    setOtpBusy(true);
+    setOtpError(null);
+    setOtpStatus(null);
+
+    try {
+      await api.enableOtp(accessToken, code);
+      setOtpEnabled(true);
+      setOtpPending(false);
+      setOtpSetupData(null);
+      setOtpCode('');
+      setOtpStatus('OTP 2차인증이 활성화되었습니다.');
+      await fetchUser();
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+
+        const refreshedToken = useAuthStore.getState().accessToken;
+        if (!refreshedToken) {
+          logout();
+          return;
+        }
+
+        await api.enableOtp(refreshedToken, code);
+        setOtpEnabled(true);
+        setOtpPending(false);
+        setOtpSetupData(null);
+        setOtpCode('');
+        setOtpStatus('OTP 2차인증이 활성화되었습니다.');
+        await fetchUser();
+      } else {
+        setOtpError(err.message || 'OTP 활성화에 실패했습니다.');
+      }
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const handleDisableOtp = async () => {
+    if (!accessToken) return;
+    const code = otpCode.trim();
+    if (!code) {
+      setOtpError('OTP 코드를 입력해주세요.');
+      return;
+    }
+
+    setOtpBusy(true);
+    setOtpError(null);
+    setOtpStatus(null);
+
+    try {
+      await api.disableOtp(accessToken, code);
+      setOtpEnabled(false);
+      setOtpPending(false);
+      setOtpSetupData(null);
+      setOtpCode('');
+      setOtpStatus('OTP 2차인증이 비활성화되었습니다.');
+      await fetchUser();
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+
+        const refreshedToken = useAuthStore.getState().accessToken;
+        if (!refreshedToken) {
+          logout();
+          return;
+        }
+
+        await api.disableOtp(refreshedToken, code);
+        setOtpEnabled(false);
+        setOtpPending(false);
+        setOtpSetupData(null);
+        setOtpCode('');
+        setOtpStatus('OTP 2차인증이 비활성화되었습니다.');
+        await fetchUser();
+      } else {
+        setOtpError(err.message || 'OTP 비활성화에 실패했습니다.');
+      }
+    } finally {
+      setOtpBusy(false);
     }
   };
 
@@ -448,6 +622,95 @@ const MyPage = () => {
             </span>
           </div>
         </label>
+      </div>
+
+      {/* OTP 2FA Settings */}
+      <div className="glass-card rounded-lg p-5 mb-4">
+        <h2 className="text-base font-semibold mb-2">2차인증 OTP</h2>
+        <p className="text-sm text-text-sub mb-4">
+          Google Authenticator, Authy 같은 OTP 앱으로 로그인 보안을 강화할 수 있습니다.
+        </p>
+
+        <div className="text-sm mb-3">
+          현재 상태: <span className={otpEnabled ? 'text-success font-semibold' : 'text-text-sub'}>{otpEnabled ? '활성화' : '비활성화'}</span>
+        </div>
+
+        {!otpEnabled && !otpPending && (
+          <button
+            onClick={() => void handleSetupOtp()}
+            disabled={otpBusy}
+            className="btn-primary px-4 py-2.5 rounded-lg text-sm cursor-pointer"
+          >
+            {otpBusy ? '준비 중...' : 'OTP 설정 시작'}
+          </button>
+        )}
+
+        {(otpPending || otpEnabled) && (
+          <div className="flex flex-col gap-3">
+            {otpSetupData && (
+              <div className="rounded-lg border border-border p-3 bg-surface-2">
+                <div className="text-xs text-text-sub mb-2">OTP 앱에서 아래 QR을 스캔하세요.</div>
+                <img src={otpSetupData.qr_code_data_url} alt="OTP QR" className="w-44 h-44 rounded-md border border-border bg-white" />
+                <div className="text-xs text-text-sub mt-2">수동 입력 키</div>
+                <div className="font-mono text-xs break-all text-text">{otpSetupData.secret}</div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-text-sub">OTP 코드</label>
+              <input
+                type="text"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6자리 코드를 입력하세요"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                className="glass-input px-3.5 py-2.5 rounded-md text-sm font-sans"
+              />
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              {!otpEnabled && (
+                <button
+                  onClick={() => void handleEnableOtp()}
+                  disabled={otpBusy}
+                  className="btn-primary px-4 py-2 rounded-lg text-sm"
+                >
+                  {otpBusy ? '활성화 중...' : 'OTP 활성화'}
+                </button>
+              )}
+              {otpEnabled && (
+                <button
+                  onClick={() => void handleDisableOtp()}
+                  disabled={otpBusy}
+                  className="btn-ghost text-error border border-error/40 hover:bg-error-bg px-4 py-2 rounded-lg text-sm"
+                >
+                  {otpBusy ? '비활성화 중...' : 'OTP 비활성화'}
+                </button>
+              )}
+              {!otpEnabled && (
+                <button
+                  onClick={() => void handleSetupOtp()}
+                  disabled={otpBusy}
+                  className="btn-ghost px-4 py-2 rounded-lg text-sm"
+                >
+                  QR 재생성
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {otpStatus && (
+          <div className="px-4 py-3 rounded-md bg-success-bg text-success text-sm mt-3">
+            {otpStatus}
+          </div>
+        )}
+        {otpError && (
+          <div className="px-4 py-3 rounded-md bg-error-bg text-error text-sm mt-3">
+            {otpError}
+          </div>
+        )}
       </div>
 
       {/* Danger Zone */}

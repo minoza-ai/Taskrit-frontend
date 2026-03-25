@@ -18,6 +18,8 @@ const LoginPage = () => {
   const isLoading = useAuthStore((s) => s.isLoading);
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpRequired, setOtpRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = Boolean(userId && password && !isLoading);
@@ -27,9 +29,14 @@ const LoginPage = () => {
     if (!canSubmit) return;
     setError(null);
     try {
-      await login(userId, password);
+      await login(userId, password, otpCode.trim() || undefined);
       navigate('/dashboard');
     } catch (err: any) {
+      if (err?.otp_required) {
+        setOtpRequired(true);
+        setError('OTP 인증 코드 6자리를 입력해주세요.');
+        return;
+      }
       if (err.status === 429) {
         setError('로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도해주세요.');
       } else {
@@ -60,9 +67,14 @@ const LoginPage = () => {
       const signed = await window.solana.signMessage(encodedMessage, 'utf8');
       const signature = uint8ArrayToBase64(signed.signature);
 
-      await loginWithWallet(walletAddress, signature, nonce, message);
+      await loginWithWallet(walletAddress, signature, nonce, message, otpCode.trim() || undefined);
       navigate('/dashboard');
     } catch (err: any) {
+      if (err?.otp_required) {
+        setOtpRequired(true);
+        setError('OTP 인증 코드 6자리를 입력한 뒤 다시 시도해주세요.');
+        return;
+      }
       if (err?.status === 429) {
         setError('로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도해주세요.');
       } else {
@@ -98,6 +110,21 @@ const LoginPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호 입력"
               autoComplete="current-password"
+              className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-text-sub">
+              OTP 코드 {otpRequired ? '(필수)' : '(2차인증 사용 시 입력)'}
+            </label>
+            <input
+              type="text"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="6자리 인증 코드"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
             />
           </div>

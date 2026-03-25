@@ -129,6 +129,7 @@ export interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  otp_required?: boolean;
 }
 
 export interface RegisterResponse {
@@ -157,11 +158,12 @@ export async function register(
 export async function login(
   user_id: string,
   password: string,
+  otp_code?: string,
 ): Promise<TokenResponse> {
   const hashed = await sha256(password);
   return request('/user/login', {
     method: 'POST',
-    body: JSON.stringify({ user_id, password: hashed }),
+    body: JSON.stringify({ user_id, password: hashed, ...(otp_code ? { otp_code } : {}) }),
   });
 }
 
@@ -182,7 +184,19 @@ export interface UserProfile {
   nickname: string;
   wallet_address: string | null;
   profile_image_url?: string;
+  otp_enabled?: boolean;
   created_at: number;
+}
+
+export interface OtpStatusResponse {
+  otp_enabled: boolean;
+  otp_pending: boolean;
+}
+
+export interface OtpSetupResponse {
+  secret: string;
+  otpauth_url: string;
+  qr_code_data_url: string;
 }
 
 export async function getMe(token: string): Promise<UserProfile> {
@@ -264,10 +278,12 @@ export async function walletLogin(
   nonce: string,
   message?: string,
   signature_encoding?: 'base58' | 'base64' | 'hex',
+  otp_code?: string,
 ): Promise<TokenResponse> {
   const body: Record<string, string> = { wallet_address, signature, nonce };
   if (message) body.message = message;
   if (signature_encoding) body.signature_encoding = signature_encoding;
+  if (otp_code) body.otp_code = otp_code;
 
   return request('/wallets/login/confirm', {
     method: 'POST',
@@ -281,6 +297,35 @@ export async function walletDisconnect(
   await request('/wallets', {
     method: 'DELETE',
     headers: authHeaders(token),
+  });
+}
+
+export async function getOtpStatus(token: string): Promise<OtpStatusResponse> {
+  return request('/user/me/otp/status', {
+    headers: authHeaders(token),
+  });
+}
+
+export async function setupOtp(token: string): Promise<OtpSetupResponse> {
+  return request('/user/me/otp/setup', {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+}
+
+export async function enableOtp(token: string, code: string): Promise<{ message: string }> {
+  return request('/user/me/otp/enable', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function disableOtp(token: string, code: string): Promise<{ message: string }> {
+  return request('/user/me/otp/disable', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ code }),
   });
 }
 
