@@ -1257,6 +1257,7 @@ const MessagesPage = () => {
                     && activeMessage.sender_uuid === user?.user_uuid
                     && !activeMessage.is_deleted
                     && activeMessage.message_type !== 'deleted';
+                  const hasFile = !!activeMessage && (!!activeMessage.file_url || !!activeMessage.saved_filename);
 
                   if (!activeMessage) {
                     return null;
@@ -1318,8 +1319,9 @@ const MessagesPage = () => {
                             <>
                               <button
                                 type="button"
+                                disabled={hasFile}
                                 onClick={() => void handleCopyMessage(activeMessage)}
-                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors"
+                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 복사
                               </button>
@@ -1332,7 +1334,7 @@ const MessagesPage = () => {
                               </button>
                               <button
                                 type="button"
-                                disabled={!canDelete}
+                                disabled={!canDelete || hasFile}
                                 onClick={() => {
                                   if (activeMessage && activeMessage.sender_uuid === user?.user_uuid) {
                                     startEditMessage(activeMessage);
