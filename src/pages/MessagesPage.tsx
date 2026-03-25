@@ -64,6 +64,7 @@ const MessagesPage = () => {
   const messageStyle = useChatSettingsStore((s) => s.messageStyle);
 
   const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
+  const [swipingMessageId, setSwipingMessageId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -73,6 +74,11 @@ const MessagesPage = () => {
   const longPressTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const blinkTimerRef = useRef<number | null>(null);
+  const touchStartXRef = useRef(0);
+  const touchStartMessageIdRef = useRef<string | null>(null);
+  const isSwipeRef = useRef(false);
+  const swipeDistanceRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -298,19 +304,83 @@ const MessagesPage = () => {
     }
   };
 
-  const handleMessageTouchStart = (_e: React.TouchEvent<HTMLDivElement>, messageId: string) => {
+  const handleMessageTouchStart = (e: React.TouchEvent<HTMLDivElement>, messageId: string) => {
     if (isDesktopViewport) return;
+
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartMessageIdRef.current = messageId;
+    isSwipeRef.current = false;
 
     clearLongPressTimer();
 
     longPressTimerRef.current = window.setTimeout(() => {
-      setHoveredMessageId(messageId);
-      openActionMenu(messageId);
+      if (!isSwipeRef.current) {
+        setHoveredMessageId(messageId);
+        openActionMenu(messageId);
+      }
     }, 450);
   };
 
-  const handleMessageTouchEnd = () => {
+  const handleMessageTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartXRef.current || !touchStartMessageIdRef.current) return;
+
+    const currentX = e.touches[0].clientX;
+    const deltaX = touchStartXRef.current - currentX;
+
+    if (deltaX > 0) {
+      swipeDistanceRef.current = Math.min(deltaX, 100);
+
+      // 새 메시지 ID로 변경되면 state 업데이트
+      if (swipingMessageId !== touchStartMessageIdRef.current) {
+        setSwipingMessageId(touchStartMessageIdRef.current);
+      }
+
+      // 매 프레임마다 DOM 업데이트
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = requestAnimationFrame(() => {
+        const msgElement = document.getElementById(`message-${touchStartMessageIdRef.current}`);
+        if (msgElement) {
+          msgElement.style.transform = `translateX(-${swipeDistanceRef.current}px)`;
+          msgElement.style.transition = 'none';
+        }
+      });
+    }
+
+    // 왼쪽으로 50px 이상 이동하면 swipe로 간주
+    if (deltaX > 50) {
+      isSwipeRef.current = true;
+      clearLongPressTimer();
+    }
+  };
+
+  const handleMessageTouchEnd = (messageId: string) => {
     clearLongPressTimer();
+
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+
+    if (isSwipeRef.current && touchStartMessageIdRef.current === messageId) {
+      const msg = messages.find((m) => m.message_id === messageId);
+      if (msg) {
+        startReplyMessage(msg);
+      }
+    }
+
+    // DOM에 transition 추가하고 transform 초기화
+    const msgElement = document.getElementById(`message-${touchStartMessageIdRef.current}`);
+    if (msgElement) {
+      msgElement.style.transition = 'transform 0.3s ease-out';
+      msgElement.style.transform = 'translateX(0px)';
+    }
+
+    touchStartXRef.current = 0;
+    touchStartMessageIdRef.current = null;
+    isSwipeRef.current = false;
+    swipeDistanceRef.current = 0;
+    setSwipingMessageId(null);
   };
 
   const getOtherUser = (room: ChatRoom): ChatUser | null => {
@@ -1092,8 +1162,8 @@ const MessagesPage = () => {
                           onMouseEnter={() => setHoveredMessageId(msg.message_id)}
                           onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
                           onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
-                          onTouchEnd={handleMessageTouchEnd}
-                          onTouchMove={handleMessageTouchEnd}
+                          onTouchEnd={() => handleMessageTouchEnd(msg.message_id)}
+                          onTouchMove={handleMessageTouchMove}
                           className={`group flex w-full gap-3 rounded-lg px-2 py-0 ${!isPreviousSameSender && index > 0 ? 'mt-2' : ''} ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''} ${isReplyingTarget ? 'bg-yellow-100/50 dark:bg-yellow-900/30' : 'hover:bg-surface-2/50'
                             }`}
                         >
@@ -1161,6 +1231,9 @@ const MessagesPage = () => {
                         id={`message-${msg.message_id}`}
                         onMouseEnter={() => setHoveredMessageId(msg.message_id)}
                         onMouseLeave={() => setHoveredMessageId((prev) => (prev === msg.message_id ? null : prev))}
+                        onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
+                        onTouchEnd={() => handleMessageTouchEnd(msg.message_id)}
+                        onTouchMove={handleMessageTouchMove}
                         className={`flex w-full mb-1 items-end ${isMe ? 'justify-end pl-10' : 'justify-start pr-10'
                           } ${blinkingMessageId === msg.message_id ? 'animate-blink' : ''} ${isReplyingTarget ? 'bg-yellow-100/50 dark:bg-yellow-900/30 rounded-lg px-1 py-1 -mx-1' : ''
                           }`}
@@ -1192,9 +1265,6 @@ const MessagesPage = () => {
                         {(() => {
                           return (
                             <div
-                              onTouchStart={(e) => handleMessageTouchStart(e, msg.message_id)}
-                              onTouchEnd={handleMessageTouchEnd}
-                              onTouchMove={handleMessageTouchEnd}
                               className={`relative leading-relaxed whitespace-pre-wrap min-w-[2rem] max-w-full ${isImageFile
                                   ? 'bg-transparent text-left'
                                   : `px-4 py-2.5 rounded-2xl shadow-sm ${isMe
