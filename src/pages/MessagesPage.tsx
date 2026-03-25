@@ -1044,7 +1044,8 @@ const MessagesPage = () => {
             <button
               key={`${message.message_id}-${emoji}`}
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 if (reactionLongPressTriggeredKeyRef.current === reactionKey) {
                   reactionLongPressTriggeredKeyRef.current = null;
                   return;
@@ -1053,15 +1054,19 @@ const MessagesPage = () => {
                 void toggleMessageReaction(message, emoji);
               }}
               onMouseEnter={(e) => {
+                e.stopPropagation();
                 if (!isDesktopViewport) return;
                 showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji);
               }}
-              onMouseLeave={() => {
+              onMouseLeave={(e) => {
+                e.stopPropagation();
                 if (!isDesktopViewport) return;
                 setReactionViewerState(null);
               }}
               onTouchStart={(e) => {
+                e.stopPropagation();
                 if (isDesktopViewport) return;
+                clearLongPressTimer();
                 reactionLongPressTriggeredKeyRef.current = null;
                 clearReactionLongPressTimer();
                 reactionLongPressTimerRef.current = window.setTimeout(() => {
@@ -1069,9 +1074,18 @@ const MessagesPage = () => {
                   showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji);
                 }, 450);
               }}
-              onTouchEnd={clearReactionLongPressTimer}
-              onTouchCancel={clearReactionLongPressTimer}
-              onTouchMove={clearReactionLongPressTimer}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                clearReactionLongPressTimer();
+              }}
+              onTouchCancel={(e) => {
+                e.stopPropagation();
+                clearReactionLongPressTimer();
+              }}
+              onTouchMove={(e) => {
+                e.stopPropagation();
+                clearReactionLongPressTimer();
+              }}
               className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${reactedByMe
                 ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
                 : 'bg-surface border-border text-text-sub hover:bg-surface-2'
