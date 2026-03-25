@@ -22,17 +22,33 @@ const LoginPage = () => {
   const [otpRequired, setOtpRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = Boolean(userId && password && !isLoading);
+  const handleUserIdChange = (value: string) => {
+    setUserId(value);
+    if (otpRequired) {
+      setOtpRequired(false);
+      setOtpCode('');
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (otpRequired) {
+      setOtpRequired(false);
+      setOtpCode('');
+    }
+  };
+
+  const canSubmit = Boolean(userId && password && !isLoading && (!otpRequired || otpCode.trim().length === 6));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
     try {
-      await login(userId, password, otpCode.trim() || undefined);
+      await login(userId, password, otpRequired ? otpCode.trim() : undefined);
       navigate('/dashboard');
     } catch (err: any) {
-      if (err?.otp_required) {
+      if (err?.body?.otp_required || err?.otp_required) {
         setOtpRequired(true);
         setError('OTP 인증 코드 6자리를 입력해주세요.');
         return;
@@ -70,7 +86,7 @@ const LoginPage = () => {
       await loginWithWallet(walletAddress, signature, nonce, message, otpCode.trim() || undefined);
       navigate('/dashboard');
     } catch (err: any) {
-      if (err?.otp_required) {
+      if (err?.body?.otp_required || err?.otp_required) {
         setOtpRequired(true);
         setError('OTP 인증 코드 6자리를 입력한 뒤 다시 시도해주세요.');
         return;
@@ -95,7 +111,7 @@ const LoginPage = () => {
             <input
               type="text"
               value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+              onChange={(e) => handleUserIdChange(e.target.value)}
               placeholder="아이디 입력"
               autoComplete="username"
               className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
@@ -107,27 +123,27 @@ const LoginPage = () => {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => handlePasswordChange(e.target.value)}
               placeholder="비밀번호 입력"
               autoComplete="current-password"
               className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-text-sub">
-              OTP 코드 {otpRequired ? '(필수)' : '(2차인증 사용 시 입력)'}
-            </label>
-            <input
-              type="text"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="6자리 인증 코드"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
-            />
-          </div>
+          {otpRequired && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-text-sub">OTP 코드 (필수)</label>
+              <input
+                type="text"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6자리 인증 코드"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                className="glass-input w-full px-3.5 py-3 rounded-md text-[15px] font-sans"
+              />
+            </div>
+          )}
 
           {error && (
             <div className="px-4 py-3 rounded-md bg-error-bg text-error text-sm">
