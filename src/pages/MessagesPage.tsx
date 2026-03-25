@@ -55,6 +55,13 @@ const MessagesPage = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [reactionPickerMessage, setReactionPickerMessage] = useState<ChatMessage | null>(null);
+  const [reactionViewerState, setReactionViewerState] = useState<{
+    messageId: string;
+    emoji: string;
+    users: string[];
+    x: number;
+    y: number;
+  } | null>(null);
 
   // File Upload State
   const [isUploading, setIsUploading] = useState(false);
@@ -82,6 +89,8 @@ const MessagesPage = () => {
   const swipeDistanceRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const messageLoadTokenRef = useRef(0);
+  const reactionLongPressTimerRef = useRef<number | null>(null);
+  const reactionLongPressTriggeredKeyRef = useRef<string | null>(null);
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -274,6 +283,9 @@ const MessagesPage = () => {
       if (longPressTimerRef.current) {
         window.clearTimeout(longPressTimerRef.current);
       }
+      if (reactionLongPressTimerRef.current) {
+        window.clearTimeout(reactionLongPressTimerRef.current);
+      }
       if (toastTimerRef.current) {
         window.clearTimeout(toastTimerRef.current);
       }
@@ -302,6 +314,42 @@ const MessagesPage = () => {
 
   const closeReactionPicker = () => {
     setReactionPickerMessage(null);
+  };
+
+  const clearReactionLongPressTimer = () => {
+    if (reactionLongPressTimerRef.current) {
+      window.clearTimeout(reactionLongPressTimerRef.current);
+      reactionLongPressTimerRef.current = null;
+    }
+  };
+
+  const getReactionUserDisplayName = (userUuid: string) => {
+    if (userUuid === user?.user_uuid) {
+      return `${user?.nickname || '나'} (나)`;
+    }
+
+    const found = chatUsers.find((u) => u.user_uuid === userUuid);
+    return found?.nickname || '알 수 없음';
+  };
+
+  const showReactionViewer = (
+    target: HTMLElement,
+    messageId: string,
+    emoji: string,
+    usersByEmoji: string[]
+  ) => {
+    const rect = target.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const clampedX = Math.min(Math.max(centerX, 120), Math.max(window.innerWidth - 120, 120));
+    const y = Math.max(rect.top - 8, 72);
+
+    setReactionViewerState({
+      messageId,
+      emoji,
+      users: usersByEmoji,
+      x: clampedX,
+      y,
+    });
   };
 
   const clearLongPressTimer = () => {
@@ -990,12 +1038,40 @@ const MessagesPage = () => {
       <div className={`mt-1 flex flex-wrap gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
         {entries.map(([emoji, usersByEmoji]) => {
           const reactedByMe = !!user?.user_uuid && usersByEmoji.includes(user.user_uuid);
+          const reactionKey = `${message.message_id}-${emoji}`;
 
           return (
             <button
               key={`${message.message_id}-${emoji}`}
               type="button"
-              onClick={() => void toggleMessageReaction(message, emoji)}
+              onClick={() => {
+                if (reactionLongPressTriggeredKeyRef.current === reactionKey) {
+                  reactionLongPressTriggeredKeyRef.current = null;
+                  return;
+                }
+                setReactionViewerState(null);
+                void toggleMessageReaction(message, emoji);
+              }}
+              onMouseEnter={(e) => {
+                if (!isDesktopViewport) return;
+                showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji);
+              }}
+              onMouseLeave={() => {
+                if (!isDesktopViewport) return;
+                setReactionViewerState(null);
+              }}
+              onTouchStart={(e) => {
+                if (isDesktopViewport) return;
+                reactionLongPressTriggeredKeyRef.current = null;
+                clearReactionLongPressTimer();
+                reactionLongPressTimerRef.current = window.setTimeout(() => {
+                  reactionLongPressTriggeredKeyRef.current = reactionKey;
+                  showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji);
+                }, 450);
+              }}
+              onTouchEnd={clearReactionLongPressTimer}
+              onTouchCancel={clearReactionLongPressTimer}
+              onTouchMove={clearReactionLongPressTimer}
               className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${reactedByMe
                 ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
                 : 'bg-surface border-border text-text-sub hover:bg-surface-2'
@@ -1625,6 +1701,30 @@ const MessagesPage = () => {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {reactionViewerState && (
+                  <div className="fixed inset-0 z-50 pointer-events-none" role="presentation">
+                    <div
+                      className="absolute w-[14rem] max-w-[70vw] rounded-xl border border-border bg-surface shadow-2xl p-2"
+                      style={{
+                        left: reactionViewerState.x,
+                        top: reactionViewerState.y,
+                        transform: 'translate(-50%, -100%)',
+                      }}
+                    >
+                      <div className="text-xs font-semibold text-text mb-1">
+                        {reactionViewerState.emoji} 반응 {reactionViewerState.users.length}명
+                      </div>
+                      <div className="flex flex-col gap-1 text-xs text-text-sub">
+                        {reactionViewerState.users.map((userUuid) => (
+                          <div key={`${reactionViewerState.messageId}-${reactionViewerState.emoji}-${userUuid}`} className="truncate">
+                            {getReactionUserDisplayName(userUuid)}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
