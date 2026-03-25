@@ -12,6 +12,7 @@ import {
   listRoomMessages,
   markRoomAsRead,
   sendRoomMessage,
+  toggleRoomMessageReaction,
   uploadRoomFile,
   type ChatMessage,
   type ChatRoom,
@@ -40,7 +41,7 @@ const MessagesPage = () => {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
+  const [, setWsConnected] = useState(false);
   const [isComposingMessage, setIsComposingMessage] = useState(false);
   const [isComposingTargetUserId, setIsComposingTargetUserId] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
@@ -53,6 +54,7 @@ const MessagesPage = () => {
   const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [reactionPickerMessage, setReactionPickerMessage] = useState<ChatMessage | null>(null);
 
   // File Upload State
   const [isUploading, setIsUploading] = useState(false);
@@ -296,6 +298,10 @@ const MessagesPage = () => {
 
   const closeActionMenu = () => {
     setActionMenuState(null);
+  };
+
+  const closeReactionPicker = () => {
+    setReactionPickerMessage(null);
   };
 
   const clearLongPressTimer = () => {
@@ -802,6 +808,14 @@ const MessagesPage = () => {
             void loadRooms();
             return;
           }
+
+          if (payload.type === 'message_reaction_updated' && payload.data) {
+            const updated = payload.data as ChatMessage;
+            if (updated.room_id === selectedConversation) {
+              applyEditedMessage(updated);
+            }
+            return;
+          }
         } catch {
           // Ignore malformed websocket payloads.
         }
@@ -932,6 +946,69 @@ const MessagesPage = () => {
     }
 
     closeActionMenu();
+  };
+
+  const toggleMessageReaction = async (message: ChatMessage, emoji: string) => {
+    if (!accessToken) return;
+
+    try {
+      const result = await toggleRoomMessageReaction(accessToken, message.message_id, emoji);
+      applyEditedMessage(result.data);
+    } catch (err: any) {
+      setError(err.message || '메시지 반응 업데이트에 실패했습니다.');
+    }
+  };
+
+  const reactionOptions = ['👍', '✅', '❤️', '😂', '😲', '😢'];
+
+  const handleAddReaction = async (message: ChatMessage) => {
+    if (message.is_deleted || message.message_type === 'deleted') {
+      showToast('삭제된 메시지에는 반응할 수 없습니다.');
+      closeActionMenu();
+      return;
+    }
+
+    setReactionPickerMessage(message);
+    closeActionMenu();
+  };
+
+  const handleSelectReaction = async (emoji: string) => {
+    if (!reactionPickerMessage) return;
+    await toggleMessageReaction(reactionPickerMessage, emoji);
+    closeReactionPicker();
+  };
+
+  const renderMessageReactions = (message: ChatMessage, align: 'left' | 'right') => {
+    const reactionMap = message.reactions || {};
+    const entries = Object.entries(reactionMap).filter(([, usersByEmoji]) => usersByEmoji.length > 0);
+
+    if (!entries.length) {
+      return null;
+    }
+
+    return (
+      <div className={`mt-1 flex flex-wrap gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+        {entries.map(([emoji, usersByEmoji]) => {
+          const reactedByMe = !!user?.user_uuid && usersByEmoji.includes(user.user_uuid);
+
+          return (
+            <button
+              key={`${message.message_id}-${emoji}`}
+              type="button"
+              onClick={() => void toggleMessageReaction(message, emoji)}
+              className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${reactedByMe
+                ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
+                : 'bg-surface border-border text-text-sub hover:bg-surface-2'
+                }`}
+              title="반응 토글"
+            >
+              <span>{emoji}</span>
+              <span className="ml-1 font-semibold">{usersByEmoji.length}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
   const startEditMessage = (message: ChatMessage) => {
@@ -1174,9 +1251,6 @@ const MessagesPage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </button>
-                  <span className={`text-xs shrink-0 ${wsConnected ? 'text-green-600' : 'text-text-hint'}`}>
-                    {wsConnected ? '실시간 연결됨' : '재연결 중'}
-                  </span>
                 </div>
               </div>
 
@@ -1280,6 +1354,7 @@ const MessagesPage = () => {
                               <div className="flex-1 min-w-0 text-[15px] leading-6 text-text whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                                 {renderReplyPreview(msg, isMe, 'irc')}
                                 {renderMessageMainContent(msg, isMe, isDeleted, 'irc')}
+                                {renderMessageReactions(msg, 'left')}
                               </div>
                               <button
                                 type="button"
@@ -1375,6 +1450,7 @@ const MessagesPage = () => {
                                 </svg>
                               )}
                               {renderMessageMainContent(msg, isMe, isDeleted, 'bubble')}
+                              {renderMessageReactions(msg, isMe ? 'right' : 'left')}
                             </div>
                           );
                         })()}
@@ -1407,6 +1483,9 @@ const MessagesPage = () => {
                   const activeMessage = messages.find((m) => m.message_id === actionMenuState.messageId) || null;
                   const canDelete = !!activeMessage
                     && activeMessage.sender_uuid === user?.user_uuid
+                    && !activeMessage.is_deleted
+                    && activeMessage.message_type !== 'deleted';
+                  const canReact = !!activeMessage
                     && !activeMessage.is_deleted
                     && activeMessage.message_type !== 'deleted';
                   const hasFile = !!activeMessage && (!!activeMessage.file_url || !!activeMessage.saved_filename);
@@ -1486,6 +1565,14 @@ const MessagesPage = () => {
                               </button>
                               <button
                                 type="button"
+                                disabled={!canReact}
+                                onClick={() => void handleAddReaction(activeMessage)}
+                                className="w-full text-left px-4 py-3 text-base hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                반응
+                              </button>
+                              <button
+                                type="button"
                                 disabled={!canDelete || hasFile}
                                 onClick={() => {
                                   if (activeMessage && activeMessage.sender_uuid === user?.user_uuid) {
@@ -1511,6 +1598,37 @@ const MessagesPage = () => {
                     </div>
                   );
                 })()}
+
+                {reactionPickerMessage && (
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={closeReactionPicker}
+                    role="presentation"
+                  >
+                    <div className="absolute inset-0 bg-black/20" />
+                    <div className="absolute inset-0 z-50 flex items-center justify-center px-4">
+                      <div
+                        className="w-full max-w-xs rounded-2xl border border-border bg-surface shadow-2xl p-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="text-sm font-semibold mb-2">반응 선택</div>
+                        <div className="grid grid-cols-6 gap-2">
+                          {reactionOptions.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => void handleSelectReaction(emoji)}
+                              className="h-11 rounded-xl bg-surface-2 hover:bg-surface-3 transition-colors text-2xl flex items-center justify-center"
+                              title={`반응 ${emoji}`}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {toastMessage && (
                   <div

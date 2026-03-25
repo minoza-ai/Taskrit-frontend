@@ -406,6 +406,7 @@ export interface ChatMessage {
   created_at: string;
   edited_at?: string;
   unread_member_count?: number;
+  reactions?: Record<string, string[]>;
   parent_id?: string | null;
   parent_message?: {
     message_id: string;
@@ -497,6 +498,17 @@ export async function editRoomMessage(
   return chatRequest(`/messages/${messageId}`, token, {
     method: 'PUT',
     body: JSON.stringify({ text }),
+  });
+}
+
+export async function toggleRoomMessageReaction(
+  token: string,
+  messageId: string,
+  emoji: string,
+): Promise<{ message: string; data: ChatMessage }> {
+  return chatRequest(`/messages/${messageId}/reactions`, token, {
+    method: 'POST',
+    body: JSON.stringify({ emoji }),
   });
 }
 
