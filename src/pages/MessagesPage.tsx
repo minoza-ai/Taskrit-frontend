@@ -58,6 +58,11 @@ const MessagesPage = () => {
   const [isInCall, setIsInCall] = useState(false);
   const [callPeerUserUuid, setCallPeerUserUuid] = useState<string | null>(null);
   const [callStatusText, setCallStatusText] = useState<string | null>(null);
+  const [incomingCallState, setIncomingCallState] = useState<{
+    roomId: string;
+    callerUserUuid: string;
+    callerNickname?: string;
+  } | null>(null);
   const [reactionPickerMessage, setReactionPickerMessage] = useState<ChatMessage | null>(null);
   const [reactionViewerState, setReactionViewerState] = useState<{
     messageId: string;
@@ -84,12 +89,24 @@ const MessagesPage = () => {
   const [swipingMessageId, setSwipingMessageId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const wsRoomRef = useRef<string | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
   const rtcPeerRef = useRef<RTCPeerConnection | null>(null);
   const localAudioStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const outgoingCallTimeoutRef = useRef<number | null>(null);
+  const ringtoneIntervalRef = useRef<number | null>(null);
+  const ringtoneAudioContextRef = useRef<AudioContext | null>(null);
+  const callPeerUserUuidRef = useRef<string | null>(null);
+  const isCallConnectingRef = useRef(false);
+  const isInCallRef = useRef(false);
+  const incomingCallStateRef = useRef<{
+    roomId: string;
+    callerUserUuid: string;
+    callerNickname?: string;
+  } | null>(null);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollOnNextMessageRef = useRef(false);
   const lastMarkedReadMessageByRoomRef = useRef<Record<string, string>>({});
@@ -193,13 +210,75 @@ const MessagesPage = () => {
     });
   };
 
-  const sendWsEvent = (payload: Record<string, unknown>): boolean => {
+  const sendWsEvent = (payload: Record<string, unknown>, requiredRoomId?: string): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return false;
     }
 
-    wsRef.current.send(JSON.stringify(payload));
-    return true;
+    if (requiredRoomId && wsRoomRef.current !== requiredRoomId) {
+      return false;
+    }
+
+    try {
+      wsRef.current.send(JSON.stringify(payload));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const startIncomingCallRingtone = () => {
+    if (ringtoneIntervalRef.current) {
+      return;
+    }
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      return;
+    }
+
+    const audioContext = new AudioCtx();
+    ringtoneAudioContextRef.current = audioContext;
+
+    const beepOnce = (frequency: number, durationMs: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.value = 0.0001;
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+
+      const now = audioContext.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+
+      oscillator.start();
+      oscillator.stop(now + durationMs / 1000 + 0.02);
+    };
+
+    const playPattern = () => {
+      beepOnce(880, 180);
+      window.setTimeout(() => beepOnce(740, 180), 220);
+    };
+
+    playPattern();
+    ringtoneIntervalRef.current = window.setInterval(playPattern, 1600);
+  };
+
+  const stopIncomingCallRingtone = () => {
+    if (ringtoneIntervalRef.current) {
+      window.clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+
+    if (ringtoneAudioContextRef.current) {
+      void ringtoneAudioContextRef.current.close();
+      ringtoneAudioContextRef.current = null;
+    }
   };
 
   const stopLocalAudioTracks = () => {
@@ -221,6 +300,13 @@ const MessagesPage = () => {
 
   const cleanupVoiceCall = (notifyPeer: boolean, toastMessage?: string) => {
     const targetUserUuid = callPeerUserUuid;
+
+    if (outgoingCallTimeoutRef.current) {
+      window.clearTimeout(outgoingCallTimeoutRef.current);
+      outgoingCallTimeoutRef.current = null;
+    }
+
+    stopIncomingCallRingtone();
 
     if (notifyPeer && targetUserUuid) {
       sendWsEvent({
@@ -248,6 +334,11 @@ const MessagesPage = () => {
     setIsInCall(false);
     setCallPeerUserUuid(null);
     setCallStatusText(null);
+    setIncomingCallState(null);
+    isCallConnectingRef.current = false;
+    isInCallRef.current = false;
+    callPeerUserUuidRef.current = null;
+    incomingCallStateRef.current = null;
 
     if (toastMessage) {
       showToast(toastMessage);
@@ -294,6 +385,11 @@ const MessagesPage = () => {
       const state = peerConnection.connectionState;
 
       if (state === 'connected') {
+        if (outgoingCallTimeoutRef.current) {
+          window.clearTimeout(outgoingCallTimeoutRef.current);
+          outgoingCallTimeoutRef.current = null;
+        }
+
         setIsCallConnecting(false);
         setIsInCall(true);
         setCallStatusText('음성 통화 중');
@@ -356,10 +452,56 @@ const MessagesPage = () => {
       }
 
       if (payload.type === 'call_start' && payload.sender_uuid !== user.user_uuid) {
-        setCallPeerUserUuid(payload.sender_uuid || null);
-        setIsCallConnecting(true);
-        setCallStatusText('수신 통화 연결 중...');
+        if (!payload.sender_uuid) {
+          return;
+        }
+
+        if (isInCallRef.current || isCallConnectingRef.current || incomingCallStateRef.current) {
+          sendWsEvent({
+            type: 'call_reject',
+            target_user_uuid: payload.sender_uuid,
+          });
+          return;
+        }
+
+        setCallPeerUserUuid(payload.sender_uuid);
+        setIncomingCallState({
+          roomId: typeof payload.room_id === 'string' ? payload.room_id : selectedConversation || '',
+          callerUserUuid: payload.sender_uuid,
+        });
+        setCallStatusText('수신 중...');
+        startIncomingCallRingtone();
         showToast('음성 통화 요청이 도착했습니다.');
+        return;
+      }
+
+      if (payload.type === 'call_accept' && payload.sender_uuid !== user.user_uuid) {
+        if (!payload.sender_uuid || payload.sender_uuid !== callPeerUserUuidRef.current) {
+          return;
+        }
+
+        setCallStatusText('통화 연결 중...');
+
+        const stream = await ensureLocalAudioStream();
+        const peerConnection = createPeerConnection(payload.sender_uuid);
+
+        stream.getTracks().forEach((track) => {
+          peerConnection.addTrack(track, stream);
+        });
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        sendWsEvent({
+          type: 'webrtc_offer',
+          target_user_uuid: payload.sender_uuid,
+          sdp: offer.sdp,
+        });
+        return;
+      }
+
+      if (payload.type === 'call_reject' && payload.sender_uuid !== user.user_uuid) {
+        cleanupVoiceCall(false, '상대방이 통화를 거절했습니다.');
         return;
       }
 
@@ -376,6 +518,8 @@ const MessagesPage = () => {
         setCallPeerUserUuid(payload.sender_uuid);
         setIsCallConnecting(true);
         setCallStatusText('통화 연결 중...');
+        setIncomingCallState(null);
+        stopIncomingCallRingtone();
 
         const stream = await ensureLocalAudioStream();
         const peerConnection = createPeerConnection(payload.sender_uuid);
@@ -416,7 +560,12 @@ const MessagesPage = () => {
       }
 
       if (payload.type === 'webrtc_ice' && payload.sender_uuid !== user.user_uuid) {
-        if (!payload.candidate || !rtcPeerRef.current) {
+        if (!payload.candidate) {
+          return;
+        }
+
+        if (!rtcPeerRef.current) {
+          pendingIceCandidatesRef.current.push(payload.candidate as RTCIceCandidateInit);
           return;
         }
 
@@ -444,33 +593,107 @@ const MessagesPage = () => {
     }
 
     try {
+      await ensureLocalAudioStream();
+
       setCallPeerUserUuid(targetUserUuid);
       setIsCallConnecting(true);
-      setCallStatusText('통화 연결 중...');
+      setCallStatusText('상대방 응답 대기 중...');
+      setIncomingCallState(null);
 
-      const stream = await ensureLocalAudioStream();
-      const peerConnection = createPeerConnection(targetUserUuid);
-
-      stream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, stream);
-      });
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-
-      sendWsEvent({
+      const sent = sendWsEvent({
         type: 'call_start',
         target_user_uuid: targetUserUuid,
-      });
+      }, selectedConversation || undefined);
 
-      sendWsEvent({
-        type: 'webrtc_offer',
-        target_user_uuid: targetUserUuid,
-        sdp: offer.sdp,
-      });
+      if (!sent) {
+        cleanupVoiceCall(false, '통화 요청 전송에 실패했습니다.');
+        return;
+      }
+
+      if (outgoingCallTimeoutRef.current) {
+        window.clearTimeout(outgoingCallTimeoutRef.current);
+      }
+
+      outgoingCallTimeoutRef.current = window.setTimeout(() => {
+        cleanupVoiceCall(true, '상대방 응답이 없어 통화를 종료했습니다.');
+      }, 30000);
     } catch {
       cleanupVoiceCall(false, '마이크 권한이 필요하거나 통화를 시작할 수 없습니다.');
     }
+  };
+
+  const handleAcceptIncomingCall = async () => {
+    if (!incomingCallState) {
+      return;
+    }
+
+    if (selectedConversation !== incomingCallState.roomId) {
+      setSelectedConversation(incomingCallState.roomId);
+      setMobileView('chat');
+      showToast('채팅방 연결 중입니다. 잠시 후 다시 수락해주세요.');
+      return;
+    }
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      showToast('실시간 연결이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    try {
+      await ensureLocalAudioStream();
+    } catch {
+      sendWsEvent({
+        type: 'call_reject',
+        target_user_uuid: incomingCallState.callerUserUuid,
+      });
+      stopIncomingCallRingtone();
+      setIncomingCallState(null);
+      setCallPeerUserUuid(null);
+      setCallStatusText(null);
+      showToast('마이크 권한이 없어 통화를 받을 수 없습니다.');
+      return;
+    }
+
+    const sent = sendWsEvent({
+      type: 'call_accept',
+      target_user_uuid: incomingCallState.callerUserUuid,
+    }, incomingCallState.roomId);
+
+    if (!sent) {
+      showToast('채팅방 연결이 아직 준비되지 않았습니다. 잠시 후 다시 수락해주세요.');
+      return;
+    }
+
+    stopIncomingCallRingtone();
+    setCallPeerUserUuid(incomingCallState.callerUserUuid);
+    setIncomingCallState(null);
+    setIsCallConnecting(true);
+    setCallStatusText('통화 연결 중...');
+
+    if (outgoingCallTimeoutRef.current) {
+      window.clearTimeout(outgoingCallTimeoutRef.current);
+    }
+    outgoingCallTimeoutRef.current = window.setTimeout(() => {
+      cleanupVoiceCall(true, '연결 시간이 초과되어 통화를 종료했습니다.');
+    }, 30000);
+  };
+
+  const handleRejectIncomingCall = () => {
+    if (!incomingCallState) {
+      return;
+    }
+
+    sendWsEvent({
+      type: 'call_reject',
+      target_user_uuid: incomingCallState.callerUserUuid,
+    }, incomingCallState.roomId);
+
+    stopIncomingCallRingtone();
+    setIncomingCallState(null);
+    setCallPeerUserUuid(null);
+    setCallStatusText(null);
+    setIsCallConnecting(false);
+    showToast('통화를 거절했습니다.');
   };
 
   const handleEndVoiceCall = () => {
@@ -492,7 +715,7 @@ const MessagesPage = () => {
       wsRef.current = null;
     }
 
-    cleanupVoiceCall(false);
+    wsRoomRef.current = null;
     reconnectAttemptRef.current = 0;
     setWsConnected(false);
   };
@@ -567,6 +790,22 @@ const MessagesPage = () => {
   }, [messages]);
 
   useEffect(() => {
+    callPeerUserUuidRef.current = callPeerUserUuid;
+  }, [callPeerUserUuid]);
+
+  useEffect(() => {
+    isCallConnectingRef.current = isCallConnecting;
+  }, [isCallConnecting]);
+
+  useEffect(() => {
+    isInCallRef.current = isInCall;
+  }, [isInCall]);
+
+  useEffect(() => {
+    incomingCallStateRef.current = incomingCallState;
+  }, [incomingCallState]);
+
+  useEffect(() => {
     const onResize = () => {
       setIsDesktopViewport(window.innerWidth >= 768);
     };
@@ -588,6 +827,10 @@ const MessagesPage = () => {
       if (toastTimerRef.current) {
         window.clearTimeout(toastTimerRef.current);
       }
+      if (outgoingCallTimeoutRef.current) {
+        window.clearTimeout(outgoingCallTimeoutRef.current);
+      }
+      stopIncomingCallRingtone();
     };
   }, []);
 
@@ -628,6 +871,19 @@ const MessagesPage = () => {
     }
 
     const found = chatUsers.find((u) => u.user_uuid === userUuid);
+    return found?.nickname || '알 수 없음';
+  };
+
+  const getIncomingCallerDisplayName = () => {
+    if (!incomingCallState) {
+      return '알 수 없음';
+    }
+
+    if (incomingCallState.callerNickname) {
+      return incomingCallState.callerNickname;
+    }
+
+    const found = chatUsers.find((u) => u.user_uuid === incomingCallState.callerUserUuid);
     return found?.nickname || '알 수 없음';
   };
 
@@ -1051,6 +1307,46 @@ const MessagesPage = () => {
   }, [accessToken]);
 
   useEffect(() => {
+    const handleIncomingCallNotification = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        roomId: string;
+        callerUserUuid: string;
+        callerNickname?: string;
+      }>;
+
+      const detail = customEvent.detail;
+      if (!detail || !detail.roomId || !detail.callerUserUuid) {
+        return;
+      }
+
+      if (detail.callerUserUuid === user?.user_uuid) {
+        return;
+      }
+
+      if (isInCall || isCallConnecting || incomingCallState) {
+        return;
+      }
+
+      setSelectedConversation(detail.roomId);
+      setMobileView('chat');
+      setCallPeerUserUuid(detail.callerUserUuid);
+      setIncomingCallState({
+        roomId: detail.roomId,
+        callerUserUuid: detail.callerUserUuid,
+        callerNickname: detail.callerNickname,
+      });
+      setCallStatusText('수신 중...');
+      startIncomingCallRingtone();
+    };
+
+    window.addEventListener('taskrit:incoming-call-notification', handleIncomingCallNotification as EventListener);
+
+    return () => {
+      window.removeEventListener('taskrit:incoming-call-notification', handleIncomingCallNotification as EventListener);
+    };
+  }, [incomingCallState, isCallConnecting, isInCall, user?.user_uuid]);
+
+  useEffect(() => {
     const targetRoomId = searchParams.get('room');
     if (!targetRoomId) return;
 
@@ -1122,6 +1418,7 @@ const MessagesPage = () => {
 
       socket.onopen = () => {
         if (disposed) return;
+        wsRoomRef.current = selectedConversation;
         setWsConnected(true);
         reconnectAttemptRef.current = 0; // Reset attempts on successful connection
       };
@@ -1193,6 +1490,8 @@ const MessagesPage = () => {
           if (
             payload.type === 'call_start'
             || payload.type === 'call_end'
+            || payload.type === 'call_accept'
+            || payload.type === 'call_reject'
             || payload.type === 'webrtc_offer'
             || payload.type === 'webrtc_answer'
             || payload.type === 'webrtc_ice'
@@ -1207,12 +1506,14 @@ const MessagesPage = () => {
 
       socket.onerror = () => {
         if (disposed) return;
+        wsRoomRef.current = null;
         setWsConnected(false);
         console.warn('Chat WebSocket error - will attempt to reconnect');
       };
 
       socket.onclose = () => {
         if (disposed) return;
+        wsRoomRef.current = null;
         setWsConnected(false);
         reconnectAttemptRef.current += 1;
 
@@ -1822,6 +2123,10 @@ const MessagesPage = () => {
                   </button>
                   <button
                     onClick={() => {
+                      if (incomingCallState) {
+                        return;
+                      }
+
                       if (isInCall || isCallConnecting) {
                         handleEndVoiceCall();
                         return;
@@ -1829,9 +2134,10 @@ const MessagesPage = () => {
 
                       void handleStartVoiceCall();
                     }}
-                    className={`p-1.5 rounded-lg transition-colors ${isInCall || isCallConnecting ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-surface-2'}`}
+                    className={`p-1.5 rounded-lg transition-colors ${isInCall || isCallConnecting ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-surface-2'} ${incomingCallState ? 'opacity-40 cursor-not-allowed' : ''}`}
                     aria-label={isInCall || isCallConnecting ? '음성 통화 종료' : '음성 통화 시작'}
                     title={isInCall || isCallConnecting ? '음성 통화 종료' : '음성 통화 시작'}
+                    disabled={!!incomingCallState}
                   >
                     {isInCall || isCallConnecting ? (
                       <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1859,6 +2165,29 @@ const MessagesPage = () => {
                   >
                     종료
                   </button>
+                </div>
+              )}
+
+              {incomingCallState && (
+                <div className="px-3 md:px-4 py-3 border-b border-border bg-emerald-500/10 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text truncate">{getIncomingCallerDisplayName()}님이 음성 통화를 요청했습니다.</p>
+                    <p className="text-xs text-text-sub">수락을 누르면 마이크로 연결됩니다.</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleRejectIncomingCall}
+                      className="text-xs px-3 py-1.5 rounded-md bg-surface-3 text-text hover:bg-surface-2 transition-colors"
+                    >
+                      거절
+                    </button>
+                    <button
+                      onClick={() => void handleAcceptIncomingCall()}
+                      className="text-xs px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      수락
+                    </button>
+                  </div>
                 </div>
               )}
 

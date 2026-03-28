@@ -86,6 +86,7 @@ type ChatNotification = {
   createdAt: string;
   seen: boolean;
   senderProfileImage?: string;
+  notificationType?: 'new_message' | 'incoming_call';
 };
 
 const AppLayout = () => {
@@ -104,6 +105,9 @@ const AppLayout = () => {
   const notificationSocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
+  const callRingtoneIntervalRef = useRef<number | null>(null);
+  const callRingtoneAudioContextRef = useRef<AudioContext | null>(null);
+  const callRingtoneStopTimerRef = useRef<number | null>(null);
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
 
   const cycleTheme = () => {
@@ -115,8 +119,73 @@ const AppLayout = () => {
   const themeLabel = themeMode === 'system' ? '시스템' : themeMode === 'dark' ? '다크' : '라이트';
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
 
+  const stopCallRingtone = () => {
+    if (callRingtoneIntervalRef.current) {
+      window.clearInterval(callRingtoneIntervalRef.current);
+      callRingtoneIntervalRef.current = null;
+    }
+
+    if (callRingtoneStopTimerRef.current) {
+      window.clearTimeout(callRingtoneStopTimerRef.current);
+      callRingtoneStopTimerRef.current = null;
+    }
+
+    if (callRingtoneAudioContextRef.current) {
+      void callRingtoneAudioContextRef.current.close();
+      callRingtoneAudioContextRef.current = null;
+    }
+  };
+
+  const startCallRingtone = () => {
+    if (callRingtoneIntervalRef.current) {
+      return;
+    }
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      return;
+    }
+
+    const audioContext = new AudioCtx();
+    callRingtoneAudioContextRef.current = audioContext;
+
+    const beepOnce = (frequency: number, durationMs: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.value = 0.0001;
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+
+      const now = audioContext.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+
+      oscillator.start();
+      oscillator.stop(now + durationMs / 1000 + 0.02);
+    };
+
+    const playPattern = () => {
+      beepOnce(900, 170);
+      window.setTimeout(() => beepOnce(760, 170), 220);
+    };
+
+    playPattern();
+    callRingtoneIntervalRef.current = window.setInterval(playPattern, 1600);
+
+    callRingtoneStopTimerRef.current = window.setTimeout(() => {
+      stopCallRingtone();
+    }, 12000);
+  };
+
   useEffect(() => {
     if (!accessToken) {
+      stopCallRingtone();
+
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
@@ -181,7 +250,49 @@ const AppLayout = () => {
 
         try {
           const payload = JSON.parse(event.data);
-          if (payload.type !== 'notification' || payload.event !== 'new_message') {
+          if (payload.type !== 'notification') {
+            return;
+          }
+
+          if (payload.event === 'incoming_call') {
+            const roomId = payload.room_id as string;
+            const callerUserUuid = payload.caller?.user_uuid as string | undefined;
+            const callerNickname = payload.caller?.nickname as string | undefined;
+
+            if (!roomId || !callerUserUuid || callerUserUuid === user?.user_uuid) {
+              return;
+            }
+
+            window.dispatchEvent(new CustomEvent('taskrit:incoming-call-notification', {
+              detail: {
+                roomId,
+                callerUserUuid,
+                callerNickname,
+              },
+            }));
+
+            startCallRingtone();
+
+            const callNotification: ChatNotification = {
+              id: `${roomId}-incoming-call-${Date.now()}`,
+              roomId,
+              roomName: (payload.room_name as string) || '채팅방',
+              preview: `${callerNickname || '상대방'}님이 음성 통화를 요청했습니다.`,
+              createdAt: new Date().toISOString(),
+              seen: false,
+              senderProfileImage: payload.caller?.profile_image_url as string | undefined,
+              notificationType: 'incoming_call',
+            };
+
+            setNotifications((prev) => [
+              callNotification,
+              ...prev,
+            ].slice(0, 30));
+
+            return;
+          }
+
+          if (payload.event !== 'new_message') {
             return;
           }
 
@@ -208,16 +319,19 @@ const AppLayout = () => {
             },
           }));
 
+          const messageNotification: ChatNotification = {
+            id: `${roomId}-${messageId}`,
+            roomId,
+            roomName: (payload.room_name as string) || '채팅방',
+            preview: (payload.message?.text as string) || '새 메시지가 도착했습니다.',
+            createdAt: (payload.message?.created_at as string) || new Date().toISOString(),
+            seen: false,
+            senderProfileImage: payload.message?.sender_profile_image as string | undefined,
+            notificationType: 'new_message',
+          };
+
           setNotifications((prev) => [
-            {
-              id: `${roomId}-${messageId}`,
-              roomId,
-              roomName: (payload.room_name as string) || '채팅방',
-              preview: (payload.message?.text as string) || '새 메시지가 도착했습니다.',
-              createdAt: (payload.message?.created_at as string) || new Date().toISOString(),
-              seen: false,
-              senderProfileImage: payload.message?.sender_profile_image as string | undefined,
-            },
+            messageNotification,
             ...prev,
           ].slice(0, 30));
         } catch {
@@ -253,6 +367,7 @@ const AppLayout = () => {
 
     return () => {
       disposed = true;
+      stopCallRingtone();
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
@@ -286,6 +401,7 @@ const AppLayout = () => {
     setIsNotificationOpen((prev) => {
       const next = !prev;
       if (next) {
+        stopCallRingtone();
         setNotifications((items) => items.map((item) => ({ ...item, seen: true })));
       }
       return next;
@@ -293,6 +409,7 @@ const AppLayout = () => {
   };
 
   const moveToNotifiedRoom = (notification: ChatNotification) => {
+    stopCallRingtone();
     setIsNotificationOpen(false);
     navigate(`/messages?room=${encodeURIComponent(notification.roomId)}`);
   };
@@ -386,7 +503,12 @@ const AppLayout = () => {
                             </div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-semibold text-text truncate">{item.roomName}</div>
+                            <div className="text-xs font-semibold text-text truncate flex items-center gap-1">
+                              <span className="truncate">{item.roomName}</span>
+                              {item.notificationType === 'incoming_call' && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">통화</span>
+                              )}
+                            </div>
                             <div className="text-xs text-text-sub truncate mt-0.5">{item.preview}</div>
                             <div className="text-[10px] text-text-hint mt-1">{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                           </div>
