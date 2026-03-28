@@ -406,6 +406,15 @@ export async function getPublicFeed(limit: number = 10): Promise<{ projects: Pro
   return request(`/projects/feed?limit=${limit}`);
 }
 
+export async function getPublicMetrics(): Promise<{
+  activeProjects: number;
+  thisWeekMatches: number;
+  activeMembers: number;
+  totalCompleted: number;
+}> {
+  return request('/projects/public/metrics');
+}
+
 export async function getProject(token: string, project_uuid: string): Promise<Project> {
   return request(`/projects/${project_uuid}`, {
     headers: authHeaders(token),

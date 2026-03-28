@@ -1,24 +1,41 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getPublicFeed, type Project } from '../lib/api';
+import { getPublicFeed, getPublicMetrics, type Project } from '../lib/api';
+
+interface Metrics {
+  activeProjects: number;
+  thisWeekMatches: number;
+  activeMembers: number;
+  totalCompleted: number;
+}
 
 const LandingPage = () => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [metrics, setMetrics] = useState<Metrics>({
+    activeProjects: 0,
+    thisWeekMatches: 0,
+    activeMembers: 0,
+    totalCompleted: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadData = async () => {
       try {
-        const result = await getPublicFeed(3);
-        setProjects(result.projects);
+        const [projectsResult, metricsResult] = await Promise.all([
+          getPublicFeed(3),
+          getPublicMetrics(),
+        ]);
+        setProjects(projectsResult.projects);
+        setMetrics(metricsResult);
       } catch (err) {
-        console.error('Failed to load projects:', err);
+        console.error('Failed to load data:', err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadProjects();
+    loadData();
   }, []);
   return (
     <div className="min-h-screen relative overflow-hidden bg-bg text-text">
@@ -64,10 +81,10 @@ const LandingPage = () => {
             <div className="glass-card rounded-2xl p-5 md:p-6 border border-glass-border/70">
               <p className="text-xs text-text-hint uppercase tracking-[0.18em] mb-4">Today Snapshot</p>
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <MetricCard title="진행 중 프로젝트" value="126" />
-                <MetricCard title="이번 주 매칭" value="48" />
-                <MetricCard title="활성 멤버" value="2,314" />
-                <MetricCard title="누적 완료" value="8,902" />
+                <MetricCard title="진행 중 프로젝트" value={metrics.activeProjects.toString()} />
+                <MetricCard title="이번 주 매칭" value={metrics.thisWeekMatches.toString()} />
+                <MetricCard title="활성 멤버" value={metrics.activeMembers.toLocaleString('ko-KR')} />
+                <MetricCard title="누적 완료" value={metrics.totalCompleted.toString()} />
               </div>
               <div className="rounded-xl bg-surface-2 border border-border p-4">
                 <p className="text-sm font-semibold mb-2">실시간 프로젝트 피드</p>
