@@ -43,7 +43,7 @@ const ProjectDetailPage = () => {
     human: '인간 전문가',
     ai: 'AI 에이전트',
     robot: '로봇',
-    asset: '기술 자산',
+    asset: '자산',
   };
 
   const parseMatchingResults = (description: string): MatchedCandidate[] => {
