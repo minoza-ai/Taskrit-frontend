@@ -65,12 +65,13 @@ const MessagesPage = () => {
 
   // File Upload State
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
-  const [dragOverInputArea, setDragOverInputArea] = useState(false);
-  const [dragOverMessageArea, setDragOverMessageArea] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const chatAreaRef = useRef<HTMLDivElement>(null);
+  const dragCounterRef = useRef(0);
 
   const optimizeImage = useChatSettingsStore((s) => s.optimizeUploadedImages);
   const messageStyle = useChatSettingsStore((s) => s.messageStyle);
@@ -968,7 +969,10 @@ const MessagesPage = () => {
 
     try {
       setIsUploading(true);
-      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage);
+      setUploadProgress(0);
+      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage, (progress) => {
+        setUploadProgress(progress);
+      });
       setToastMessage('파일이 전송되었습니다.');
       setTimeout(() => setToastMessage(null), 3000);
       await loadRooms();
@@ -977,6 +981,7 @@ const MessagesPage = () => {
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -986,19 +991,31 @@ const MessagesPage = () => {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverInputArea(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      dragCounterRef.current++;
+      setIsDraggingFile(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverInputArea(false);
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFile(false);
+    }
   };
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverInputArea(false);
+    setIsDraggingFile(false);
+    dragCounterRef.current = 0;
 
     const file = e.dataTransfer.files?.[0];
     if (!file || !selectedConversation || !accessToken) return;
@@ -1011,7 +1028,10 @@ const MessagesPage = () => {
 
     try {
       setIsUploading(true);
-      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage);
+      setUploadProgress(0);
+      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage, (progress) => {
+        setUploadProgress(progress);
+      });
       setToastMessage('파일이 전송되었습니다.');
       setTimeout(() => setToastMessage(null), 3000);
       await loadRooms();
@@ -1020,25 +1040,41 @@ const MessagesPage = () => {
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   const handleMessageAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverMessageArea(true);
+  };
+
+  const handleMessageAreaDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      dragCounterRef.current++;
+      setIsDraggingFile(true);
+    }
   };
 
   const handleMessageAreaDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverMessageArea(false);
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFile(false);
+    }
   };
 
   const handleMessageAreaDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverMessageArea(false);
+    setIsDraggingFile(false);
+    dragCounterRef.current = 0;
 
     const file = e.dataTransfer.files?.[0];
     if (!file || !selectedConversation || !accessToken) return;
@@ -1051,7 +1087,10 @@ const MessagesPage = () => {
 
     try {
       setIsUploading(true);
-      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage);
+      setUploadProgress(0);
+      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage, (progress) => {
+        setUploadProgress(progress);
+      });
       setToastMessage('파일이 전송되었습니다.');
       setTimeout(() => setToastMessage(null), 3000);
       await loadRooms();
@@ -1060,6 +1099,7 @@ const MessagesPage = () => {
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -1417,11 +1457,24 @@ const MessagesPage = () => {
         {/* Chat Area */}
         <div
           ref={chatAreaRef}
+          onDragEnter={handleMessageAreaDragEnter}
           onDragOver={handleMessageAreaDragOver}
           onDragLeave={handleMessageAreaDragLeave}
           onDrop={handleMessageAreaDrop}
           className={`md:col-span-2 bg-surface/50 border-t border-border md:border md:glass-card md:rounded-xl flex flex-col min-h-[22rem] md:min-h-0 relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}
         >
+          {/* Drag and Drop Overlay */}
+          {isDraggingFile && (
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center rounded-xl pointer-events-none">
+              <div className="text-center">
+                <svg className="w-16 h-16 mx-auto mb-3 text-blue-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                </svg>
+                <p className="text-lg font-bold text-white mb-1">이곳에 드래그 앤 드롭하여</p>
+                <p className="text-lg font-bold text-white">파일 업로드</p>
+              </div>
+            </div>
+          )}
           {selectedConversation ? (
             <>
               {/* Header */}
@@ -1485,20 +1538,13 @@ const MessagesPage = () => {
 
               {/* Messages */}
               <div className="relative flex-1 min-h-0">
-                {dragOverMessageArea && (
-                  <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-400/10 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg z-50 flex items-center justify-center pointer-events-none">
-                    <div className="text-center">
-                      <svg className="w-12 h-12 mx-auto mb-2 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      <p className="text-sm font-semibold text-text">이곳에 드래그 앤 드롭하여</p>
-                      <p className="text-sm font-semibold text-text">파일 업로드</p>
-                    </div>
-                  </div>
-                )}
                 <div
                   ref={messageViewportRef}
                   onScroll={handleMessageScroll}
+                  onDragEnter={handleMessageAreaDragEnter}
+                  onDragOver={handleMessageAreaDragOver}
+                  onDragLeave={handleMessageAreaDragLeave}
+                  onDrop={handleMessageAreaDrop}
                   className={`h-full p-3 md:p-4 overflow-y-auto flex flex-col ${messageStyle === 'irc' ? 'gap-0' : 'gap-3'}`}
                 >
                   {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
@@ -1894,7 +1940,8 @@ const MessagesPage = () => {
 
               {/* Input */}
               <div
-                className={`p-3 border-t border-border bg-surface transition-all ${dragOverInputArea ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-400' : ''}`}
+                className="p-3 border-t border-border bg-surface transition-all"
+                onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -1930,6 +1977,20 @@ const MessagesPage = () => {
                     >
                       <svg className="w-4 h-4 text-text-hint" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
+                  </div>
+                )}
+                {isUploading && (
+                  <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-text font-medium">파일 업로드 중</span>
+                      <span className="text-xs text-text-hint">{Math.round(uploadProgress)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
                   </div>
                 )}
                 <div className="flex items-center gap-2">

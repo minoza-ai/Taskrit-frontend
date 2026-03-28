@@ -516,18 +516,52 @@ export async function uploadRoomFile(
   token: string,
   roomId: string,
   file: File,
-  optimize: boolean = true
+  optimize: boolean = true,
+  onProgress?: (progress: number) => void
 ): Promise<{ message: string; message_data: ChatMessage }> {
   try {
     const formData = new FormData();
     formData.append('file', file);
 
-    // optimize is a query param
-    const path = `/rooms/${roomId}/files?optimize=${optimize}`;
+    const url = `${CHAT_API_BASE || 'http://localhost:3001'}/rooms/${roomId}/files?optimize=${optimize}`;
 
-    return await chatRequest(path, token, {
-      method: 'POST',
-      body: formData,
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = (e.loaded / e.total) * 100;
+            onProgress(progress);
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            resolve(result);
+          } catch {
+            reject(new Error('Failed to parse response'));
+          }
+        } else {
+          const body = xhr.responseText ? JSON.parse(xhr.responseText).catch(() => ({})) : {};
+          reject(new Error(body.error || `Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload cancelled'));
+      });
+
+      xhr.open('POST', url);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(formData);
     });
   } catch (error) {
     console.error('File upload failed:', error);
