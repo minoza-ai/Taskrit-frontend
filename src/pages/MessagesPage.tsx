@@ -54,6 +54,10 @@ const MessagesPage = () => {
   const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCallConnecting, setIsCallConnecting] = useState(false);
+  const [isInCall, setIsInCall] = useState(false);
+  const [callPeerUserUuid, setCallPeerUserUuid] = useState<string | null>(null);
+  const [callStatusText, setCallStatusText] = useState<string | null>(null);
   const [reactionPickerMessage, setReactionPickerMessage] = useState<ChatMessage | null>(null);
   const [reactionViewerState, setReactionViewerState] = useState<{
     messageId: string;
@@ -82,6 +86,10 @@ const MessagesPage = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
+  const rtcPeerRef = useRef<RTCPeerConnection | null>(null);
+  const localAudioStreamRef = useRef<MediaStream | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollOnNextMessageRef = useRef(false);
   const lastMarkedReadMessageByRoomRef = useRef<Record<string, string>>({});
@@ -185,6 +193,290 @@ const MessagesPage = () => {
     });
   };
 
+  const sendWsEvent = (payload: Record<string, unknown>): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    wsRef.current.send(JSON.stringify(payload));
+    return true;
+  };
+
+  const stopLocalAudioTracks = () => {
+    if (!localAudioStreamRef.current) {
+      return;
+    }
+
+    localAudioStreamRef.current.getTracks().forEach((track) => track.stop());
+    localAudioStreamRef.current = null;
+  };
+
+  const getCallTargetUserUuid = () => {
+    if (!selectedRoom || !user?.user_uuid || !Array.isArray(selectedRoom.members)) {
+      return null;
+    }
+
+    return selectedRoom.members.find((memberUuid) => memberUuid !== user.user_uuid) || null;
+  };
+
+  const cleanupVoiceCall = (notifyPeer: boolean, toastMessage?: string) => {
+    const targetUserUuid = callPeerUserUuid;
+
+    if (notifyPeer && targetUserUuid) {
+      sendWsEvent({
+        type: 'call_end',
+        target_user_uuid: targetUserUuid,
+      });
+    }
+
+    if (rtcPeerRef.current) {
+      rtcPeerRef.current.ontrack = null;
+      rtcPeerRef.current.onicecandidate = null;
+      rtcPeerRef.current.onconnectionstatechange = null;
+      rtcPeerRef.current.close();
+      rtcPeerRef.current = null;
+    }
+
+    pendingIceCandidatesRef.current = [];
+    stopLocalAudioTracks();
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+
+    setIsCallConnecting(false);
+    setIsInCall(false);
+    setCallPeerUserUuid(null);
+    setCallStatusText(null);
+
+    if (toastMessage) {
+      showToast(toastMessage);
+    }
+  };
+
+  const createPeerConnection = (targetUserUuid: string) => {
+    if (rtcPeerRef.current) {
+      rtcPeerRef.current.close();
+      rtcPeerRef.current = null;
+    }
+
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+      ],
+    });
+
+    peerConnection.onicecandidate = (event) => {
+      if (!event.candidate) {
+        return;
+      }
+
+      sendWsEvent({
+        type: 'webrtc_ice',
+        target_user_uuid: targetUserUuid,
+        candidate: event.candidate.toJSON(),
+      });
+    };
+
+    peerConnection.ontrack = (event) => {
+      const remoteStream = event.streams[0];
+      if (!remoteStream || !remoteAudioRef.current) {
+        return;
+      }
+
+      remoteAudioRef.current.srcObject = remoteStream;
+      void remoteAudioRef.current.play().catch(() => {
+        // 브라우저 자동재생 정책에 막힐 수 있다. 사용자가 버튼을 눌렀으므로 대부분 재생 가능하다.
+      });
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      const state = peerConnection.connectionState;
+
+      if (state === 'connected') {
+        setIsCallConnecting(false);
+        setIsInCall(true);
+        setCallStatusText('음성 통화 중');
+        return;
+      }
+
+      if (state === 'failed' || state === 'disconnected') {
+        cleanupVoiceCall(false, '통화 연결이 종료되었습니다.');
+      }
+    };
+
+    rtcPeerRef.current = peerConnection;
+    return peerConnection;
+  };
+
+  const ensureLocalAudioStream = async () => {
+    if (localAudioStreamRef.current) {
+      return localAudioStreamRef.current;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+
+    localAudioStreamRef.current = stream;
+    return stream;
+  };
+
+  const applyPendingIceCandidates = async () => {
+    const peerConnection = rtcPeerRef.current;
+    if (!peerConnection || !peerConnection.remoteDescription) {
+      return;
+    }
+
+    if (!pendingIceCandidatesRef.current.length) {
+      return;
+    }
+
+    const queuedCandidates = [...pendingIceCandidatesRef.current];
+    pendingIceCandidatesRef.current = [];
+
+    for (const queuedCandidate of queuedCandidates) {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(queuedCandidate));
+      } catch {
+        // 후보 중 일부가 만료될 수 있다. 실패해도 통화 자체는 계속 시도한다.
+      }
+    }
+  };
+
+  const handleIncomingCallSignal = async (payload: any) => {
+    try {
+      if (!user?.user_uuid) {
+        return;
+      }
+
+      if (payload.target_user_uuid && payload.target_user_uuid !== user.user_uuid) {
+        return;
+      }
+
+      if (payload.type === 'call_start' && payload.sender_uuid !== user.user_uuid) {
+        setCallPeerUserUuid(payload.sender_uuid || null);
+        setIsCallConnecting(true);
+        setCallStatusText('수신 통화 연결 중...');
+        showToast('음성 통화 요청이 도착했습니다.');
+        return;
+      }
+
+      if (payload.type === 'call_end' && payload.sender_uuid !== user.user_uuid) {
+        cleanupVoiceCall(false, '상대방이 통화를 종료했습니다.');
+        return;
+      }
+
+      if (payload.type === 'webrtc_offer' && payload.sender_uuid !== user.user_uuid) {
+        if (typeof payload.sdp !== 'string') {
+          return;
+        }
+
+        setCallPeerUserUuid(payload.sender_uuid);
+        setIsCallConnecting(true);
+        setCallStatusText('통화 연결 중...');
+
+        const stream = await ensureLocalAudioStream();
+        const peerConnection = createPeerConnection(payload.sender_uuid);
+        stream.getTracks().forEach((track) => {
+          peerConnection.addTrack(track, stream);
+        });
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription({
+          type: 'offer',
+          sdp: payload.sdp,
+        }));
+
+        await applyPendingIceCandidates();
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        sendWsEvent({
+          type: 'webrtc_answer',
+          target_user_uuid: payload.sender_uuid,
+          sdp: answer.sdp,
+        });
+        return;
+      }
+
+      if (payload.type === 'webrtc_answer' && payload.sender_uuid !== user.user_uuid) {
+        if (typeof payload.sdp !== 'string' || !rtcPeerRef.current) {
+          return;
+        }
+
+        await rtcPeerRef.current.setRemoteDescription(new RTCSessionDescription({
+          type: 'answer',
+          sdp: payload.sdp,
+        }));
+
+        await applyPendingIceCandidates();
+        return;
+      }
+
+      if (payload.type === 'webrtc_ice' && payload.sender_uuid !== user.user_uuid) {
+        if (!payload.candidate || !rtcPeerRef.current) {
+          return;
+        }
+
+        if (rtcPeerRef.current.remoteDescription) {
+          await rtcPeerRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } else {
+          pendingIceCandidatesRef.current.push(payload.candidate as RTCIceCandidateInit);
+        }
+      }
+    } catch {
+      cleanupVoiceCall(false, '음성 통화 연결 처리 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleStartVoiceCall = async () => {
+    const targetUserUuid = getCallTargetUserUuid();
+    if (!targetUserUuid) {
+      showToast('1:1 채팅방에서만 음성 통화를 지원합니다.');
+      return;
+    }
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      showToast('실시간 연결이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    try {
+      setCallPeerUserUuid(targetUserUuid);
+      setIsCallConnecting(true);
+      setCallStatusText('통화 연결 중...');
+
+      const stream = await ensureLocalAudioStream();
+      const peerConnection = createPeerConnection(targetUserUuid);
+
+      stream.getTracks().forEach((track) => {
+        peerConnection.addTrack(track, stream);
+      });
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      sendWsEvent({
+        type: 'call_start',
+        target_user_uuid: targetUserUuid,
+      });
+
+      sendWsEvent({
+        type: 'webrtc_offer',
+        target_user_uuid: targetUserUuid,
+        sdp: offer.sdp,
+      });
+    } catch {
+      cleanupVoiceCall(false, '마이크 권한이 필요하거나 통화를 시작할 수 없습니다.');
+    }
+  };
+
+  const handleEndVoiceCall = () => {
+    cleanupVoiceCall(true);
+  };
+
   const clearSocketResources = () => {
     if (reconnectTimerRef.current) {
       window.clearTimeout(reconnectTimerRef.current);
@@ -200,6 +492,7 @@ const MessagesPage = () => {
       wsRef.current = null;
     }
 
+    cleanupVoiceCall(false);
     reconnectAttemptRef.current = 0;
     setWsConnected(false);
   };
@@ -896,6 +1189,17 @@ const MessagesPage = () => {
             }
             return;
           }
+
+          if (
+            payload.type === 'call_start'
+            || payload.type === 'call_end'
+            || payload.type === 'webrtc_offer'
+            || payload.type === 'webrtc_answer'
+            || payload.type === 'webrtc_ice'
+          ) {
+            void handleIncomingCallSignal(payload);
+            return;
+          }
         } catch {
           // Ignore malformed websocket payloads.
         }
@@ -1516,8 +1820,47 @@ const MessagesPage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </button>
+                  <button
+                    onClick={() => {
+                      if (isInCall || isCallConnecting) {
+                        handleEndVoiceCall();
+                        return;
+                      }
+
+                      void handleStartVoiceCall();
+                    }}
+                    className={`p-1.5 rounded-lg transition-colors ${isInCall || isCallConnecting ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-surface-2'}`}
+                    aria-label={isInCall || isCallConnecting ? '음성 통화 종료' : '음성 통화 시작'}
+                    title={isInCall || isCallConnecting ? '음성 통화 종료' : '음성 통화 시작'}
+                  >
+                    {isInCall || isCallConnecting ? (
+                      <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.654 5.328a1 1 0 011.414 0l2.6 2.6a1 1 0 010 1.414l-1.2 1.2a16.08 16.08 0 006.657 6.657l1.2-1.2a1 1 0 011.414 0l2.6 2.6a1 1 0 010 1.414l-1.272 1.272a2 2 0 01-2.059.486c-4.18-1.174-7.8-4.794-8.974-8.974a2 2 0 01.486-2.059l1.272-1.272z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l16 16" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-text-hint hover:text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5.25C3 4.56 3.56 4 4.25 4h2.12a1.5 1.5 0 011.47 1.21l.6 2.86a1.5 1.5 0 01-.4 1.35l-1.03 1.03a14 14 0 006.03 6.03l1.03-1.03a1.5 1.5 0 011.35-.4l2.86.6A1.5 1.5 0 0120 17.13v2.12c0 .69-.56 1.25-1.25 1.25h-.5C10.94 20.5 3.5 13.06 3.5 3.75v-.5z" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
               </div>
+
+              {(isCallConnecting || isInCall) && (
+                <div className="px-3 md:px-4 py-2 border-b border-border bg-surface-2/60 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs text-text-sub min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                    <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
+                  </div>
+                  <button
+                    onClick={handleEndVoiceCall}
+                    className="text-xs px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    종료
+                  </button>
+                </div>
+              )}
 
               {/* Search Bar */}
               {searchOpen && (
@@ -2047,6 +2390,7 @@ const MessagesPage = () => {
           )}
         </div>
       </div>
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       {viewingImage && (
         <div
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
