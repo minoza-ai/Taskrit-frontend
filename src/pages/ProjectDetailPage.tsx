@@ -1,16 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuthStore } from '../lib/store';
 import { deleteProject, getProject, updateProject, type Project } from '../lib/api';
 import PopupModal from '../components/PopupModal';
 
-interface TeamMember {
-  id: string;
+interface MatchedCandidate {
+  ability: string;
   name: string;
-  type: 'human' | 'ai' | 'robot';
-  role: string;
-  rating: number;
-  match: number;
+  type: 'human' | 'ai' | 'robot' | 'asset';
+  score: number;
+  info?: string;
 }
 
 const ProjectDetailPage = () => {
@@ -33,18 +32,53 @@ const ProjectDetailPage = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Demo recommended team
-  const [recommendedTeam] = useState<TeamMember[]>([
-    { id: '1', name: 'Alice', type: 'human', role: '프롬프트 엔지니어', rating: 1420, match: 95 },
-    { id: '2', name: 'GPT-Agent-7', type: 'ai', role: '코드 생성', rating: 1380, match: 92 },
-    { id: '3', name: 'DataBot-3', type: 'robot', role: '데이터 수집', rating: 1250, match: 88 },
-  ]);
-
   const typeIcons: Record<string, string> = {
     human: '👤',
     ai: '🤖',
     robot: '⚙️',
+    asset: '🔗',
   };
+
+  const typeLabel: Record<string, string> = {
+    human: '인간 전문가',
+    ai: 'AI 에이전트',
+    robot: '로봇',
+    asset: '기술 자산',
+  };
+
+  const parseMatchingResults = (description: string): MatchedCandidate[] => {
+    const matchingSection = description.split('[AI 매칭 제안]')[1];
+    if (!matchingSection) return [];
+
+    const candidates: MatchedCandidate[] = [];
+    const lines = matchingSection.trim().split('\n');
+
+    for (const line of lines) {
+      const match = line.match(/^-\s+([^:]+):\s+([^(]+)\s+\(([^,]+),\s+score\s+([\d.]+)\)/);
+      if (match) {
+        const [, ability, name, typeStr, scoreStr] = match;
+        const typeMap: Record<string, 'human' | 'ai' | 'robot' | 'asset'> = {
+          'human': 'human',
+          'agent': 'ai',
+          'robot': 'robot',
+          'asset': 'asset',
+        };
+
+        candidates.push({
+          ability: ability.trim(),
+          name: name.trim(),
+          type: typeMap[typeStr.trim()] || 'human',
+          score: parseFloat(scoreStr),
+        });
+      }
+    }
+
+    return candidates;
+  };
+
+  const matchedCandidates = useMemo(() => {
+    return detailedDescription ? parseMatchingResults(detailedDescription) : [];
+  }, [detailedDescription]);
 
   const formatBudget = (value: number | null): string => {
     if (value === null || value === undefined) return '';
@@ -361,46 +395,132 @@ const ProjectDetailPage = () => {
       )}
 
       {activeTab === 'team' && (
-        <div className="flex flex-col gap-4">
-          <div className="glass-card rounded-lg p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold">AI 추천 팀 구성</h2>
-              <span className="text-xs text-text-hint">매칭 알고리즘 v1.0</span>
-            </div>
-            <p className="text-sm text-text-sub mb-4">
-              프로젝트 요구사항에 기반한 최적의 팀 조합입니다.
-            </p>
-
-            <div className="flex flex-col gap-2">
-              {recommendedTeam.map((member) => (
-                <div key={member.id} className="flex items-center gap-3 p-3 bg-surface-2 rounded-lg">
-                  <span className="text-lg">{typeIcons[member.type]}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{member.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-border text-text-hint">
-                        {member.type === 'human' ? '인간' : member.type === 'ai' ? 'AI' : '로봇'}
-                      </span>
-                    </div>
-                    <span className="text-xs text-text-sub">{member.role}</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-text-hint">매칭률</p>
-                    <p className="text-sm font-bold text-success">{member.match}%</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2 mt-4">
-              <button className="btn-primary flex-1 py-2.5 rounded-lg text-sm cursor-pointer">
-                이 팀으로 확정
-              </button>
-              <button className="btn-secondary py-2.5 px-4 rounded-lg text-sm">
-                재추천
+        <div className="flex flex-col gap-6">
+          {/* Hero Section */}
+          <div className="glass-card rounded-lg p-6 border border-active/20 bg-gradient-to-br from-active/10 to-transparent">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-sub mb-2">이런 프로젝트를 계획 중이신가요?</p>
+                <p className="text-sm italic text-text-hint">
+                  "{name && name.length > 30 ? `${name.substring(0, 30)}...` : name}"
+                </p>
+              </div>
+              <button
+                onClick={() => navigate(`/projects/new`)}
+                className="btn-primary px-5 py-2.5 rounded-lg text-sm whitespace-nowrap"
+              >
+                팀 구성하기
               </button>
             </div>
           </div>
+
+          {/* Matching Results */}
+          {matchedCandidates.length > 0 ? (
+            <>
+              <div>
+                <h2 className="text-base font-bold mb-1">
+                  AI 분석 결과: <span className="text-active">{name}</span>
+                </h2>
+                <p className="text-sm text-text-sub">
+                  필요 역할 <span className="font-semibold text-text">{matchedCandidates.length}개</span> 도출
+                </p>
+              </div>
+
+              {/* Candidate Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {matchedCandidates.map((candidate, idx) => (
+                  <div
+                    key={`${candidate.ability}-${idx}`}
+                    className="glass-card rounded-lg p-5 flex flex-col items-center text-center hover:shadow-md transition-shadow"
+                  >
+                    {/* Type Badge */}
+                    <div className="text-[10px] font-semibold text-text-hint uppercase tracking-wider mb-2">
+                      {typeLabel[candidate.type]}
+                    </div>
+
+                    {/* Role Title */}
+                    <h3 className="text-sm font-bold mb-4 text-text line-clamp-2 min-h-10">
+                      {candidate.ability}
+                    </h3>
+
+                    {/* Icon */}
+                    <div className="text-4xl mb-4">{typeIcons[candidate.type]}</div>
+
+                    {/* Name */}
+                    <p className="text-sm font-semibold text-text mb-1">{candidate.name}</p>
+
+                    {/* Info */}
+                    <div className="text-xs text-text-sub mb-4 min-h-10">
+                      {candidate.type === 'asset' ? (
+                        <p>자동 배정</p>
+                      ) : candidate.type === 'ai' ? (
+                        <p>자동 배정</p>
+                      ) : (
+                        <p>검증 완료</p>
+                      )}
+                    </div>
+
+                    {/* Score/Match Bar */}
+                    <div className="w-full">
+                      <div className="mb-2">
+                        <div className="flex justify-between items-baseline mb-1">
+                          <span className="text-[9px] text-text-hint">매칭</span>
+                          <span className="text-xs font-bold text-active">
+                            {Math.round(candidate.score * 100)}%
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-border rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-active to-success transition-all"
+                            style={{ width: `${Math.min(candidate.score * 100, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary Footer */}
+              <div className="glass-card rounded-lg p-5 bg-surface-2 flex items-center justify-between gap-6">
+                <div className="flex gap-8">
+                  <div>
+                    <p className="text-xs text-text-hint">총 필요 자원</p>
+                    <p className="text-sm font-bold text-text">{matchedCandidates.length}개 충족</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-hint">예상 기간</p>
+                    <p className="text-sm font-bold text-text">{Math.ceil(matchedCandidates.length * 1.5)}주</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-hint">예상 비용</p>
+                    <p className="text-sm font-bold text-text">
+                      {(matchedCandidates.length * 1375000).toLocaleString('ko-KR')}원
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="text-xs px-3 py-2 rounded-lg bg-surface text-text-sub hover:bg-surface-2 transition-colors">
+                    역할 수정
+                  </button>
+                  <button className="btn-primary px-4 py-2 rounded-lg text-xs whitespace-nowrap cursor-pointer">
+                    이 팀으로 프로젝트 시작하기
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="glass-card rounded-lg p-12 text-center">
+              <p className="text-sm text-text-sub mb-2">아직 AI 분석 결과가 없습니다</p>
+              <p className="text-xs text-text-hint mb-4">프로젝트를 생성하거나 수정할 때 팀 추천을 받을 수 있습니다</p>
+              <button
+                onClick={() => navigate(`/projects/new`)}
+                className="btn-primary px-5 py-2.5 rounded-lg text-sm"
+              >
+                프로젝트 생성하기
+              </button>
+            </div>
+          )}
 
           <button
             onClick={() => navigate('/messages')}
