@@ -345,6 +345,39 @@ export interface Project {
   deleted_at: number | null;
 }
 
+export interface TeamingMatchCandidate {
+  accountId: string;
+  accountType: string;
+  abilityText: string;
+  similarity: number;
+  score: number;
+  linkedAssetId?: string | null;
+}
+
+export interface TeamingMatchResult {
+  taskId: string;
+  requiredAbility: string;
+  candidates: TeamingMatchCandidate[];
+}
+
+export async function suggestProjectMatches(
+  token: string,
+  data: {
+    request: string;
+    requiredDate?: number;
+    requiredElo?: number;
+    requiredCost?: number;
+    requireHuman?: boolean;
+    maxCost?: number;
+  },
+): Promise<{ matches: TeamingMatchResult[] }> {
+  return request('/projects/match/suggest', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+}
+
 export async function createProject(
   token: string,
   data: {
