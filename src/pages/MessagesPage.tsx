@@ -973,8 +973,6 @@ const MessagesPage = () => {
       await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage, (progress) => {
         setUploadProgress(progress);
       });
-      setToastMessage('파일이 전송되었습니다.');
-      setTimeout(() => setToastMessage(null), 3000);
       await loadRooms();
     } catch (err: any) {
       setToastMessage(err.message || '파일 전송에 실패했습니다.');
@@ -1032,8 +1030,6 @@ const MessagesPage = () => {
       await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage, (progress) => {
         setUploadProgress(progress);
       });
-      setToastMessage('파일이 전송되었습니다.');
-      setTimeout(() => setToastMessage(null), 3000);
       await loadRooms();
     } catch (err: any) {
       setToastMessage(err.message || '파일 전송에 실패했습니다.');
@@ -1091,8 +1087,6 @@ const MessagesPage = () => {
       await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage, (progress) => {
         setUploadProgress(progress);
       });
-      setToastMessage('파일이 전송되었습니다.');
-      setTimeout(() => setToastMessage(null), 3000);
       await loadRooms();
     } catch (err: any) {
       setToastMessage(err.message || '파일 전송에 실패했습니다.');
