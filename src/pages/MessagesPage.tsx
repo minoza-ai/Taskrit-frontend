@@ -68,6 +68,9 @@ const MessagesPage = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const [dragOverInputArea, setDragOverInputArea] = useState(false);
+  const [dragOverMessageArea, setDragOverMessageArea] = useState(false);
+  const chatAreaRef = useRef<HTMLDivElement>(null);
 
   const optimizeImage = useChatSettingsStore((s) => s.optimizeUploadedImages);
   const messageStyle = useChatSettingsStore((s) => s.messageStyle);
@@ -514,6 +517,31 @@ const MessagesPage = () => {
     );
   };
 
+  const renderTextWithLinks = (text: string): React.ReactNode => {
+    // URL 정규식 (http, https, www 포함)
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, index) => {
+      if (part && urlRegex.test(part)) {
+        const href = part.startsWith('http') ? part : `https://${part}`;
+        return (
+          <a
+            key={index}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="underline hover:opacity-80 transition-opacity break-all"
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
   const renderMessageMainContent = (msg: ChatMessage, isMe: boolean, isDeleted: boolean, style: 'bubble' | 'irc') => {
     const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
 
@@ -556,7 +584,7 @@ const MessagesPage = () => {
       return <span>{highlightSearchQuery(msg.text)}</span>;
     }
 
-    return msg.text;
+    return <span>{renderTextWithLinks(msg.text || '')}</span>;
   };
 
   const formatMessageTime = (iso: string): string => {
@@ -955,6 +983,86 @@ const MessagesPage = () => {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverInputArea(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverInputArea(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverInputArea(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !selectedConversation || !accessToken) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setToastMessage('파일 크기는 10MB를 초과할 수 없습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage);
+      setToastMessage('파일이 전송되었습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+      await loadRooms();
+    } catch (err: any) {
+      setToastMessage(err.message || '파일 전송에 실패했습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleMessageAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverMessageArea(true);
+  };
+
+  const handleMessageAreaDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverMessageArea(false);
+  };
+
+  const handleMessageAreaDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverMessageArea(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !selectedConversation || !accessToken) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setToastMessage('파일 크기는 10MB를 초과할 수 없습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      await uploadRoomFile(accessToken, selectedConversation, file, optimizeImage);
+      setToastMessage('파일이 전송되었습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+      await loadRooms();
+    } catch (err: any) {
+      setToastMessage(err.message || '파일 전송에 실패했습니다.');
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDeleteMessage = async (message: ChatMessage) => {
     if (!accessToken) return;
     if (message.sender_uuid !== user?.user_uuid) return;
@@ -1307,7 +1415,13 @@ const MessagesPage = () => {
         </div>
 
         {/* Chat Area */}
-        <div className={`md:col-span-2 bg-surface/50 border-t border-border md:border md:glass-card md:rounded-xl flex flex-col min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
+        <div
+          ref={chatAreaRef}
+          onDragOver={handleMessageAreaDragOver}
+          onDragLeave={handleMessageAreaDragLeave}
+          onDrop={handleMessageAreaDrop}
+          className={`md:col-span-2 bg-surface/50 border-t border-border md:border md:glass-card md:rounded-xl flex flex-col min-h-[22rem] md:min-h-0 relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}
+        >
           {selectedConversation ? (
             <>
               {/* Header */}
@@ -1371,6 +1485,17 @@ const MessagesPage = () => {
 
               {/* Messages */}
               <div className="relative flex-1 min-h-0">
+                {dragOverMessageArea && (
+                  <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-400/10 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg z-50 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                      <svg className="w-12 h-12 mx-auto mb-2 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <p className="text-sm font-semibold text-text">이곳에 드래그 앤 드롭하여</p>
+                      <p className="text-sm font-semibold text-text">파일 업로드</p>
+                    </div>
+                  </div>
+                )}
                 <div
                   ref={messageViewportRef}
                   onScroll={handleMessageScroll}
@@ -1768,7 +1893,12 @@ const MessagesPage = () => {
               </div>
 
               {/* Input */}
-              <div className="p-3 border-t border-border bg-surface">
+              <div
+                className={`p-3 border-t border-border bg-surface transition-all ${dragOverInputArea ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-400' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 {editingMessageId && (
                   <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-between border border-blue-200 dark:border-blue-800/30">
                     <span className="text-xs text-text font-medium">메시지 수정 중</span>
