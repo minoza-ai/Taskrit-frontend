@@ -1,9 +1,54 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
+import { getUserDashboard } from '../lib/api';
+import type { Project } from '../lib/api';
 
 const DashboardPage = () => {
   const user = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const navigate = useNavigate();
+  
+  const [ongoingCount, setOngoingCount] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [recentActivities, setRecentActivities] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const loadDashboard = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getUserDashboard(accessToken);
+        setOngoingCount(data.ongoingCount);
+        setCompletedCount(data.completedCount);
+        setRecentActivities(data.recentActivities);
+      } catch (err) {
+        console.error('Failed to load dashboard:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, [accessToken]);
+
+  const formatTimestamp = (timestamp: number): string => {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - timestamp;
+    
+    if (diff < 60) return '방금 전';
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
+    
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString('ko-KR', {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
   const quickActions = [
     {
@@ -33,9 +78,9 @@ const DashboardPage = () => {
   ];
 
   const stats = [
-    { label: '진행 중', value: '0', unit: '프로젝트' },
+    { label: '진행 중', value: String(ongoingCount), unit: '프로젝트' },
     { label: 'ELO 레이팅', value: '1000', unit: '점' },
-    { label: '완료 작업', value: '0', unit: '건' },
+    { label: '완료 작업', value: String(completedCount), unit: '건' },
     { label: '평판 점수', value: '-', unit: '' },
   ];
 
@@ -93,13 +138,45 @@ const DashboardPage = () => {
         ))}
       </div>
 
-      {/* Recent Activity placeholder */}
+      {/* Recent Activity */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold mb-4">최근 활동</h2>
-        <div className="glass-card rounded-lg p-8 text-center">
-          <p className="text-text-sub text-sm">아직 활동 내역이 없습니다</p>
-          <p className="text-text-hint text-xs mt-1">프로젝트를 등록하면 여기에 표시됩니다</p>
-        </div>
+        {isLoading ? (
+          <div className="glass-card rounded-lg p-8 text-center">
+            <p className="text-text-sub text-sm">로딩 중...</p>
+          </div>
+        ) : recentActivities.length === 0 ? (
+          <div className="glass-card rounded-lg p-8 text-center">
+            <p className="text-text-sub text-sm">아직 활동 내역이 없습니다</p>
+            <p className="text-text-hint text-xs mt-1">프로젝트를 등록하면 여기에 표시됩니다</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recentActivities.map((project) => (
+              <button
+                key={project.project_uuid}
+                onClick={() => navigate(`/projects/${project.project_uuid}`)}
+                className="glass-card rounded-lg p-4 text-left transition-all duration-200 hover:bg-bg-hover group w-full"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text group-hover:text-active transition-colors truncate">
+                      {project.name}
+                    </p>
+                    {project.category && (
+                      <p className="text-xs text-text-hint mt-1">
+                        {project.category}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-text-hint ml-2 whitespace-nowrap">
+                    {formatTimestamp(project.updated_at)}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

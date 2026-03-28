@@ -81,6 +81,7 @@ const MessagesPage = () => {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef<number>(0);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollOnNextMessageRef = useRef(false);
   const lastMarkedReadMessageByRoomRef = useRef<Record<string, string>>({});
@@ -199,6 +200,7 @@ const MessagesPage = () => {
       wsRef.current = null;
     }
 
+    reconnectAttemptRef.current = 0;
     setWsConnected(false);
   };
 
@@ -828,6 +830,7 @@ const MessagesPage = () => {
       socket.onopen = () => {
         if (disposed) return;
         setWsConnected(true);
+        reconnectAttemptRef.current = 0; // Reset attempts on successful connection
       };
 
       socket.onmessage = (event) => {
@@ -901,15 +904,26 @@ const MessagesPage = () => {
       socket.onerror = () => {
         if (disposed) return;
         setWsConnected(false);
+        console.warn('Chat WebSocket error - will attempt to reconnect');
       };
 
       socket.onclose = () => {
         if (disposed) return;
         setWsConnected(false);
+        reconnectAttemptRef.current += 1;
+
+        // Exponential backoff: 1200ms * (2 ^ attempt), max 30s
+        const backoffMs = Math.min(1200 * Math.pow(2, reconnectAttemptRef.current - 1), 30000);
+
+        // Max 10 attempts
+        if (reconnectAttemptRef.current >= 10) {
+          console.error('Chat WebSocket: max reconnection attempts reached');
+          return;
+        }
 
         reconnectTimerRef.current = window.setTimeout(() => {
           connect();
-        }, 2000);
+        }, backoffMs);
       };
     };
 

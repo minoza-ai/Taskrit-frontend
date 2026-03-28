@@ -103,6 +103,7 @@ const AppLayout = () => {
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
   const notificationSocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef<number>(0);
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
 
   const cycleTheme = () => {
@@ -170,6 +171,11 @@ const AppLayout = () => {
       const socket = new WebSocket(toNotificationsWsUrl());
       notificationSocketRef.current = socket;
 
+      socket.onopen = () => {
+        if (disposed) return;
+        reconnectAttemptRef.current = 0; // Reset attempts on successful connection
+      };
+
       socket.onmessage = (event) => {
         if (disposed) return;
 
@@ -219,11 +225,27 @@ const AppLayout = () => {
         }
       };
 
+      socket.onerror = () => {
+        if (disposed) return;
+        console.warn('Notification WebSocket error - will attempt to reconnect');
+      };
+
       socket.onclose = () => {
         if (disposed) return;
+        reconnectAttemptRef.current += 1;
+
+        // Exponential backoff: 1200ms * (2 ^ attempt), max 30s
+        const backoffMs = Math.min(1200 * Math.pow(2, reconnectAttemptRef.current - 1), 30000);
+
+        // Max 10 Attempts
+        if (reconnectAttemptRef.current >= 10) {
+          console.error('Notification WebSocket: max reconnection attempts reached');
+          return;
+        }
+
         reconnectTimerRef.current = window.setTimeout(() => {
           connect();
-        }, 1200);
+        }, backoffMs);
       };
     };
 
@@ -239,6 +261,7 @@ const AppLayout = () => {
         notificationSocketRef.current.close();
         notificationSocketRef.current = null;
       }
+      reconnectAttemptRef.current = 0;
     };
   }, [accessToken, location.pathname, user?.user_uuid]);
 

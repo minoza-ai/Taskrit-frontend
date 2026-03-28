@@ -447,6 +447,16 @@ export async function deleteProject(token: string, project_uuid: string): Promis
   });
 }
 
+export async function getUserDashboard(token: string): Promise<{
+  ongoingCount: number;
+  completedCount: number;
+  recentActivities: Project[];
+}> {
+  return request('/projects/dashboard', {
+    headers: authHeaders(token),
+  });
+}
+
 /* ====== Health ====== */
 
 export async function healthCheck(): Promise<{ status: string }> {
