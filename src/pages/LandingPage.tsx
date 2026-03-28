@@ -1,6 +1,25 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { getPublicFeed, type Project } from '../lib/api';
 
 const LandingPage = () => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const result = await getPublicFeed(3);
+        setProjects(result.projects);
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
   return (
     <div className="min-h-screen relative overflow-hidden bg-bg text-text">
       <div className="absolute -top-32 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
@@ -52,20 +71,26 @@ const LandingPage = () => {
               </div>
               <div className="rounded-xl bg-surface-2 border border-border p-4">
                 <p className="text-sm font-semibold mb-2">실시간 프로젝트 피드</p>
-                <ul className="flex flex-col gap-2 text-xs text-text-sub">
-                  <li className="flex items-center justify-between">
-                    <span>프롬프트 평가 자동화 구축</span>
-                    <span className="text-text-hint">모집중</span>
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span>도메인 데이터 라벨링 검수</span>
-                    <span className="text-text-hint">매칭중</span>
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span>챗봇 운영 대시보드 개선</span>
-                    <span className="text-text-hint">진행중</span>
-                  </li>
-                </ul>
+                {isLoading ? (
+                  <ul className="flex flex-col gap-2 text-xs text-text-sub">
+                    <li className="py-2">로딩 중...</li>
+                  </ul>
+                ) : projects.length > 0 ? (
+                  <ul className="flex flex-col gap-2 text-xs text-text-sub">
+                    {projects.map((project) => (
+                      <li key={project.project_uuid} className="flex items-center justify-between">
+                        <span className="line-clamp-1">{project.name}</span>
+                        <span className="text-text-hint text-[11px]">
+                          {project.category || '미분류'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ul className="flex flex-col gap-2 text-xs text-text-sub">
+                    <li className="py-2">등록된 프로젝트가 없습니다</li>
+                  </ul>
+                )}
               </div>
             </div>
           </div>

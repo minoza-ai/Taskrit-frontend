@@ -402,6 +402,10 @@ export async function listProjects(token: string): Promise<{ projects: Project[]
   });
 }
 
+export async function getPublicFeed(limit: number = 10): Promise<{ projects: Project[] }> {
+  return request(`/projects/feed?limit=${limit}`);
+}
+
 export async function getProject(token: string, project_uuid: string): Promise<Project> {
   return request(`/projects/${project_uuid}`, {
     headers: authHeaders(token),
