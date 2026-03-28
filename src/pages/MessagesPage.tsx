@@ -1977,7 +1977,7 @@ const MessagesPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-4 flex-1 min-h-0">
         {/* Conversation List */}
         <div className={`px-4 bg-surface/50 border border-border md:glass-card rounded-xl md:p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'} md:block`}>
-          <div className="mt-3 md:mt-0 mb-3 flex gap-2">
+          <div className="mt-3 md:mt-0 mb-3 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2">
             <input
               type="text"
               value={targetUserId}
@@ -1986,14 +1986,14 @@ const MessagesPage = () => {
               onCompositionEnd={() => setIsComposingTargetUserId(false)}
               onKeyDown={handleTargetUserIdKeyDown}
               placeholder="상대방 아이디 입력"
-              className="glass-input flex-1 py-2 px-3 rounded-md text-sm"
+              className="glass-input w-full min-w-0 py-2.5 px-4 rounded-md text-sm"
             />
             <button
               onClick={handleCreateDmByUserId}
               disabled={creatingRoom}
-              className="btn-primary px-3 py-2 rounded-md text-sm disabled:opacity-60"
+              className="btn-primary px-5 py-2.5 rounded-md text-sm disabled:opacity-60"
             >
-              {creatingRoom ? '생성중' : '시작'}
+              {creatingRoom ? '생성중' : '+'}
             </button>
           </div>
 
