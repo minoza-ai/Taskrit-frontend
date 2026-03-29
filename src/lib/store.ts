@@ -13,7 +13,7 @@ interface AuthState {
   register: (user_id: string, nickname: string, password: string) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
-  updateUser: (data: { nickname?: string; password?: string }) => Promise<void>;
+  updateUser: (data: { nickname?: string; password?: string; profile_bio?: string; capabilities?: string[] }) => Promise<void>;
   deleteAccount: () => Promise<void>;
   setTokens: (tokens: TokenResponse) => void;
   setUser: (user: UserProfile) => void;

@@ -182,6 +182,8 @@ export interface UserProfile {
   user_uuid: string;
   user_id: string;
   nickname: string;
+  profile_bio?: string;
+  capabilities?: string[];
   wallet_address: string | null;
   profile_image_url?: string;
   otp_enabled?: boolean;
@@ -207,11 +209,13 @@ export async function getMe(token: string): Promise<UserProfile> {
 
 export async function updateMe(
   token: string,
-  data: { nickname?: string; password?: string },
+  data: { nickname?: string; password?: string; profile_bio?: string; capabilities?: string[] },
 ): Promise<{ message: string }> {
-  const body: Record<string, string> = {};
+  const body: Record<string, string | string[]> = {};
   if (data.nickname) body.nickname = data.nickname;
   if (data.password) body.password = await sha256(data.password);
+  if (data.profile_bio !== undefined) body.profile_bio = data.profile_bio;
+  if (data.capabilities !== undefined) body.capabilities = data.capabilities;
   return request('/user/me', {
     method: 'PATCH',
     headers: authHeaders(token),

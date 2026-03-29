@@ -71,8 +71,8 @@ const DashboardPage = () => {
     },
     {
       title: '프로필 설정',
-      desc: '능력치와 보유 데이터를 등록하세요',
-      action: () => navigate('/profile'),
+      desc: '프로필 소개에 기술 스택과 숙련도를 작성하세요',
+      action: () => navigate('/mypage#profile-intro'),
       icon: '○',
     },
   ];

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 import PopupModal from '../components/PopupModal';
@@ -25,9 +26,11 @@ const MyPage = () => {
   const setOptimizeUploadedImages = useChatSettingsStore((s) => s.setOptimizeUploadedImages);
   const messageStyle = useChatSettingsStore((s) => s.messageStyle);
   const setMessageStyle = useChatSettingsStore((s) => s.setMessageStyle);
+  const location = useLocation();
 
   const [editMode, setEditMode] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
+  const [profileBio, setProfileBio] = useState(user?.profile_bio || '');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -81,6 +84,30 @@ const MyPage = () => {
     void loadOtpStatus();
   }, [accessToken]);
 
+  useEffect(() => {
+    if (!user || editMode) return;
+    setNickname(user.nickname || '');
+    setProfileBio(user.profile_bio || '');
+  }, [user, editMode]);
+
+  useEffect(() => {
+    if (location.hash !== '#profile-intro' || !user) return;
+    setEditMode(true);
+    setNickname(user.nickname || '');
+    setProfileBio(user.profile_bio || '');
+  }, [location.hash, user]);
+
+  useEffect(() => {
+    if (location.hash !== '#profile-intro' || !editMode) return;
+
+    const timer = window.setTimeout(() => {
+      const section = document.getElementById('profile-intro-section');
+      section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [location.hash, editMode]);
+
   const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length || !accessToken) return;
     const file = e.target.files[0];
@@ -132,8 +159,13 @@ const MyPage = () => {
     setError(null);
     setStatus(null);
     try {
-      const data: { nickname?: string; password?: string } = {};
-      if (nickname !== user?.nickname) data.nickname = nickname;
+      const data: { nickname?: string; password?: string; profile_bio?: string } = {};
+      const trimmedNickname = nickname.trim();
+      const trimmedProfileBio = profileBio.trim();
+
+      if (trimmedNickname !== (user?.nickname || '')) data.nickname = trimmedNickname;
+      if (trimmedProfileBio !== (user?.profile_bio || '')) data.profile_bio = trimmedProfileBio;
+
       if (newPassword) {
         if (newPassword !== newPasswordConfirm) {
           setError('비밀번호가 일치하지 않습니다');
@@ -142,6 +174,13 @@ const MyPage = () => {
         }
         data.password = newPassword;
       }
+
+      if (Object.keys(data).length === 0) {
+        setStatus('변경된 내용이 없습니다');
+        setBusy(false);
+        return;
+      }
+
       await updateUser(data);
       setStatus('정보가 수정되었습니다');
       setEditMode(false);
@@ -415,7 +454,11 @@ const MyPage = () => {
           <h2 className="text-base font-semibold">계정 정보</h2>
           {!editMode && (
             <button
-              onClick={() => { setEditMode(true); setNickname(user.nickname); }}
+              onClick={() => {
+                setEditMode(true);
+                setNickname(user.nickname);
+                setProfileBio(user.profile_bio || '');
+              }}
               className="text-xs text-text-sub hover:text-text transition-colors"
             >
               수정
@@ -473,6 +516,17 @@ const MyPage = () => {
                 className="glass-input px-3.5 py-2.5 rounded-md text-sm font-sans"
               />
             </div>
+            <div id="profile-intro-section" className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-text-sub">프로필 소개</label>
+              <textarea
+                value={profileBio}
+                onChange={(e) => setProfileBio(e.target.value.slice(0, 500))}
+                placeholder="다룰 수 있는 기술 스택과 숙련도(예: FastAPI 중급, React 상급, Solana 입문)를 작성해주세요"
+                rows={4}
+                className="glass-input px-3.5 py-2.5 rounded-md text-sm font-sans resize-none"
+              />
+              <span className="text-[11px] text-text-hint text-right">{profileBio.length}/500</span>
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-text-sub">새 비밀번호</label>
               <input
@@ -507,7 +561,12 @@ const MyPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => { setEditMode(false); setError(null); }}
+                onClick={() => {
+                  setEditMode(false);
+                  setError(null);
+                  setNickname(user.nickname || '');
+                  setProfileBio(user.profile_bio || '');
+                }}
                 className="btn-ghost px-4 py-2.5 rounded-lg text-sm"
               >
                 취소
@@ -519,6 +578,12 @@ const MyPage = () => {
             <InfoRow label="UUID" value={user.user_uuid} />
             <InfoRow label="아이디" value={user.user_id} />
             <InfoRow label="닉네임" value={user.nickname} />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] text-text-hint uppercase tracking-wider font-medium">프로필 소개</span>
+              <p className="text-sm text-text font-medium whitespace-pre-wrap">
+                {user.profile_bio?.trim() ? user.profile_bio : '아직 소개가 없습니다.'}
+              </p>
+            </div>
             <InfoRow
               label="가입일"
               value={new Date(user.created_at * 1000).toLocaleDateString('ko-KR')}
