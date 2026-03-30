@@ -183,6 +183,18 @@ const AppLayout = () => {
   };
 
   useEffect(() => {
+    const onStopCallRingtone = () => {
+      stopCallRingtone();
+    };
+
+    window.addEventListener('taskrit:stop-call-ringtone', onStopCallRingtone as EventListener);
+
+    return () => {
+      window.removeEventListener('taskrit:stop-call-ringtone', onStopCallRingtone as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!accessToken) {
       stopCallRingtone();
 

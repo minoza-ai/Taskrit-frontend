@@ -58,7 +58,10 @@ const MessagesPage = () => {
   const [isInCall, setIsInCall] = useState(false);
   const [callPeerUserUuid, setCallPeerUserUuid] = useState<string | null>(null);
   const [callStatusText, setCallStatusText] = useState<string | null>(null);
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
+  const [callElapsedSeconds, setCallElapsedSeconds] = useState(0);
   const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isHeadsetMuted, setIsHeadsetMuted] = useState(false);
   const [callSpeakerState, setCallSpeakerState] = useState<Record<string, { active: boolean; level: number }>>({});
   const [incomingCallState, setIncomingCallState] = useState<{
     roomId: string;
@@ -104,10 +107,12 @@ const MessagesPage = () => {
   const ringtoneAudioContextRef = useRef<AudioContext | null>(null);
   const callAudioMonitorContextRef = useRef<AudioContext | null>(null);
   const callSpeakerMonitorRafRef = useRef<number | null>(null);
+  const callElapsedTimerRef = useRef<number | null>(null);
   const callPeerUserUuidRef = useRef<string | null>(null);
   const isCallConnectingRef = useRef(false);
   const isInCallRef = useRef(false);
   const isMicMutedRef = useRef(false);
+  const isHeadsetMutedRef = useRef(false);
   const incomingCallStateRef = useRef<{
     roomId: string;
     callerUserUuid: string;
@@ -285,6 +290,8 @@ const MessagesPage = () => {
       void ringtoneAudioContextRef.current.close();
       ringtoneAudioContextRef.current = null;
     }
+
+    window.dispatchEvent(new CustomEvent('taskrit:stop-call-ringtone'));
   };
 
   const stopLocalAudioTracks = () => {
@@ -360,17 +367,23 @@ const MessagesPage = () => {
       const remoteLevel = remoteSampler ? remoteSampler() : 0;
       const peerUserUuid = callPeerUserUuidRef.current;
 
+      // Apply a noise gate to avoid false-positive speaking highlights from ambient noise.
+      const localGate = 0.2;
+      const remoteGate = 0.16;
+      const localSpeakingLevel = Math.max(0, (localLevel - localGate) / (1 - localGate));
+      const remoteSpeakingLevel = Math.max(0, (remoteLevel - remoteGate) / (1 - remoteGate));
+
       const nextSpeakerState: Record<string, { active: boolean; level: number }> = {
         [user.user_uuid]: {
-          active: !isMicMutedRef.current && localLevel > 0.08,
-          level: localLevel,
+          active: !isMicMutedRef.current && localSpeakingLevel > 0.12,
+          level: localSpeakingLevel,
         },
       };
 
       if (peerUserUuid) {
         nextSpeakerState[peerUserUuid] = {
-          active: remoteLevel > 0.08,
-          level: remoteLevel,
+          active: remoteSpeakingLevel > 0.1,
+          level: remoteSpeakingLevel,
         };
       }
 
@@ -425,6 +438,8 @@ const MessagesPage = () => {
 
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
+      remoteAudioRef.current.muted = false;
+      remoteAudioRef.current.volume = 1;
     }
     remoteAudioStreamRef.current = null;
 
@@ -432,8 +447,16 @@ const MessagesPage = () => {
     setIsInCall(false);
     setCallPeerUserUuid(null);
     setCallStatusText(null);
+    setCallStartedAt(null);
+    setCallElapsedSeconds(0);
     setIsMicMuted(false);
+    setIsHeadsetMuted(false);
     setIncomingCallState(null);
+
+    if (callElapsedTimerRef.current) {
+      window.clearInterval(callElapsedTimerRef.current);
+      callElapsedTimerRef.current = null;
+    }
     isCallConnectingRef.current = false;
     isInCallRef.current = false;
     callPeerUserUuidRef.current = null;
@@ -476,6 +499,8 @@ const MessagesPage = () => {
 
       remoteAudioStreamRef.current = remoteStream;
       remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.muted = isHeadsetMutedRef.current;
+      remoteAudioRef.current.volume = isHeadsetMutedRef.current ? 0 : 1;
       void remoteAudioRef.current.play().catch(() => {
         // 브라우저 자동재생 정책에 막힐 수 있다. 사용자가 버튼을 눌렀으므로 대부분 재생 가능하다.
       });
@@ -497,6 +522,8 @@ const MessagesPage = () => {
         setIsCallConnecting(false);
         setIsInCall(true);
         setCallStatusText('음성 통화 중');
+        setCallStartedAt(Date.now());
+        setCallElapsedSeconds(0);
         return;
       }
 
@@ -831,6 +858,12 @@ const MessagesPage = () => {
     showToast(nextMuted ? '마이크를 껐습니다.' : '마이크를 켰습니다.');
   };
 
+  const handleToggleHeadset = () => {
+    const nextMuted = !isHeadsetMutedRef.current;
+    setIsHeadsetMuted(nextMuted);
+    showToast(nextMuted ? '상대방 음성을 끕니다.' : '상대방 음성을 켭니다.');
+  };
+
   const clearSocketResources = () => {
     if (reconnectTimerRef.current) {
       window.clearTimeout(reconnectTimerRef.current);
@@ -853,6 +886,17 @@ const MessagesPage = () => {
 
   const selectedRoom = rooms.find((c) => c.room_id === selectedConversation) || null;
   const isVoiceCallOverlayVisible = isCallConnecting || isInCall;
+
+  const formatCallDuration = (seconds: number) => {
+    const safeSeconds = Math.max(0, seconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const remainingSeconds = safeSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  };
+
+  const callStatusLabel = isInCall
+    ? `${callStatusText || '음성 통화 중'} · ${formatCallDuration(callElapsedSeconds)}`
+    : (callStatusText || '통화 연결 중...');
 
   const isNearMessageBottom = () => {
     const viewport = messageViewportRef.current;
@@ -938,6 +982,15 @@ const MessagesPage = () => {
   }, [isMicMuted]);
 
   useEffect(() => {
+    isHeadsetMutedRef.current = isHeadsetMuted;
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = isHeadsetMuted;
+      remoteAudioRef.current.volume = isHeadsetMuted ? 0 : 1;
+    }
+  }, [isHeadsetMuted]);
+
+  useEffect(() => {
     incomingCallStateRef.current = incomingCallState;
   }, [incomingCallState]);
 
@@ -949,6 +1002,30 @@ const MessagesPage = () => {
 
     stopCallSpeakerMonitor();
   }, [isInCall, isCallConnecting, callPeerUserUuid, user?.user_uuid]);
+
+  useEffect(() => {
+    if (!isInCall || !callStartedAt) {
+      if (callElapsedTimerRef.current) {
+        window.clearInterval(callElapsedTimerRef.current);
+        callElapsedTimerRef.current = null;
+      }
+      return;
+    }
+
+    const updateElapsed = () => {
+      setCallElapsedSeconds(Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000)));
+    };
+
+    updateElapsed();
+    callElapsedTimerRef.current = window.setInterval(updateElapsed, 1000);
+
+    return () => {
+      if (callElapsedTimerRef.current) {
+        window.clearInterval(callElapsedTimerRef.current);
+        callElapsedTimerRef.current = null;
+      }
+    };
+  }, [isInCall, callStartedAt]);
 
   useEffect(() => {
     const onResize = () => {
@@ -974,6 +1051,10 @@ const MessagesPage = () => {
       }
       if (outgoingCallTimeoutRef.current) {
         window.clearTimeout(outgoingCallTimeoutRef.current);
+      }
+      if (callElapsedTimerRef.current) {
+        window.clearInterval(callElapsedTimerRef.current);
+        callElapsedTimerRef.current = null;
       }
       stopIncomingCallRingtone();
       stopCallSpeakerMonitor();
@@ -2327,8 +2408,8 @@ const MessagesPage = () => {
                   >
                     {isInCall || isCallConnecting ? (
                       <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.654 5.328a1 1 0 011.414 0l2.6 2.6a1 1 0 010 1.414l-1.2 1.2a16.08 16.08 0 006.657 6.657l1.2-1.2a1 1 0 011.414 0l2.6 2.6a1 1 0 010 1.414l-1.272 1.272a2 2 0 01-2.059.486c-4.18-1.174-7.8-4.794-8.974-8.974a2 2 0 01.486-2.059l1.272-1.272z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l16 16" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.68 13.31a16 16 0 002.72 2.72a1 1 0 001.09-.16l2.2-2.2a1 1 0 011.14-.2a12.14 12.14 0 003.48.54a1 1 0 011 1V19a1 1 0 01-1 1A19 19 0 014 3a1 1 0 011-1h3.5a1 1 0 011 1a12.14 12.14 0 00.54 3.48a1 1 0 01-.2 1.14l-2.2 2.2a1 1 0 00-.16 1.09" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 2L2 22" />
                       </svg>
                     ) : (
                       <svg className="w-5 h-5 text-text-hint hover:text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2347,21 +2428,43 @@ const MessagesPage = () => {
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-xs text-text-sub min-w-0">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                        <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
+                        <span className="truncate">{callStatusLabel}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={handleToggleMicrophone}
-                          className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${isMicMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20' : 'bg-surface-2 border-border text-text hover:bg-surface-3'}`}
+                          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${isMicMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20' : 'bg-surface-2 border-border text-text hover:bg-surface-3'}`}
                           title={isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                          aria-label={isMicMuted ? '마이크 켜기' : '마이크 끄기'}
                         >
-                          {isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                          {isMicMuted ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9v2a3 3 0 004.74 2.43" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 10v1a7 7 0 01-1.6 4.5" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10v1a7 7 0 0011.22 5.62" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.73 10.73A3 3 0 0015 9V5a3 3 0 00-5.66-1.4" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19v3" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 10v1a7 7 0 01-14 0v-1" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18v4" />
+                            </svg>
+                          )}
                         </button>
                         <button
-                          onClick={handleEndVoiceCall}
-                          className="text-[11px] px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+                          onClick={handleToggleHeadset}
+                          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${isHeadsetMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20' : 'bg-surface-2 border-border text-text hover:bg-surface-3'}`}
+                          title={isHeadsetMuted ? '상대 음성 듣기 켜기' : '상대 음성 듣기 끄기'}
+                          aria-label={isHeadsetMuted ? '상대 음성 듣기 켜기' : '상대 음성 듣기 끄기'}
                         >
-                          종료
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 13a8 8 0 0116 0v4a2 2 0 01-2 2h-2v-6h3" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 13v6H6a2 2 0 002-2v-4H4z" />
+                            {isHeadsetMuted && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5l14 14" />}
+                          </svg>
                         </button>
                       </div>
                     </div>
@@ -2371,15 +2474,17 @@ const MessagesPage = () => {
                         const speaker = callSpeakerState[participant.userUuid];
                         const isSpeaking = !!speaker?.active;
                         const level = speaker?.level || 0;
-                        const glowOpacity = isSpeaking ? Math.min(0.7, 0.2 + level * 0.45) : 0.08;
+                        const glowOpacity = isSpeaking ? Math.min(0.5, 0.16 + level * 0.3) : 0;
 
                         return (
                           <div key={participant.userUuid} className="w-20 shrink-0 flex flex-col items-center text-center">
                             <div className="relative">
-                              <span
-                                className="absolute inset-0 rounded-full bg-emerald-400 blur-md transition-opacity duration-200"
-                                style={{ opacity: glowOpacity }}
-                              />
+                              {isSpeaking && (
+                                <span
+                                  className="absolute inset-0 rounded-full bg-emerald-400 blur-md transition-opacity duration-200"
+                                  style={{ opacity: glowOpacity }}
+                                />
+                              )}
                               <div
                                 className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 bg-surface-3 transition-all duration-200"
                                 style={{
