@@ -106,7 +106,6 @@ const AppLayout = () => {
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
   const callRingtoneAudioRef = useRef<HTMLAudioElement | null>(null);
-  const callRingtoneStopTimerRef = useRef<number | null>(null);
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
 
   const cycleTheme = () => {
@@ -119,11 +118,6 @@ const AppLayout = () => {
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
 
   const stopCallRingtone = () => {
-    if (callRingtoneStopTimerRef.current) {
-      window.clearTimeout(callRingtoneStopTimerRef.current);
-      callRingtoneStopTimerRef.current = null;
-    }
-
     if (callRingtoneAudioRef.current) {
       callRingtoneAudioRef.current.pause();
       callRingtoneAudioRef.current.currentTime = 0;
@@ -146,10 +140,6 @@ const AppLayout = () => {
     void audio.play().catch(() => {
       // 브라우저 자동재생 정책으로 재생이 차단될 수 있다.
     });
-
-    callRingtoneStopTimerRef.current = window.setTimeout(() => {
-      stopCallRingtone();
-    }, 12000);
   };
 
   useEffect(() => {
