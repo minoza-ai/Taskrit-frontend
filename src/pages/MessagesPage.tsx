@@ -2185,8 +2185,34 @@ const MessagesPage = () => {
     void handleCreateDmByUserId();
   };
 
+  useEffect(() => {
+    const originalOverflowHtml = document.documentElement.style.overflow;
+    const originalHeightHtml = document.documentElement.style.height;
+    const originalOverflowBody = document.body.style.overflow;
+    const originalHeightBody = document.body.style.height;
+    const originalOverscrollHtml = document.documentElement.style.overscrollBehaviorY;
+    const originalOverscrollBody = document.body.style.overscrollBehaviorY;
+
+    // 모바일 등에서 페이지 전체 스크롤을 막고 내부 스크롤만 허용
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.height = '100dvh';
+    document.documentElement.style.overscrollBehaviorY = 'none';
+    document.body.style.overflow = 'hidden';
+    document.body.style.height = '100dvh';
+    document.body.style.overscrollBehaviorY = 'none';
+
+    return () => {
+      document.documentElement.style.overflow = originalOverflowHtml;
+      document.documentElement.style.height = originalHeightHtml;
+      document.documentElement.style.overscrollBehaviorY = originalOverscrollHtml;
+      document.body.style.overflow = originalOverflowBody;
+      document.body.style.height = originalHeightBody;
+      document.body.style.overscrollBehaviorY = originalOverscrollBody;
+    };
+  }, []);
+
   return (
-    <div className="animate-in h-[calc(100dvh-6.5rem)] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden -mx-4 md:mx-0 -my-4 md:my-0">
+    <div className="animate-in h-[calc(100dvh-7.375rem-1px-max(env(safe-area-inset-bottom),0.5rem))] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden -mx-4 md:mx-0 -my-4 md:my-0">
       <h1 className={`text-2xl font-bold mb-4 md:mb-6 pt-3 md:pt-0 px-4 md:px-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>메시지</h1>
       {error && <p className="mb-3 text-sm text-error px-4 md:px-0">{error}</p>}
 
