@@ -103,8 +103,6 @@ const MessagesPage = () => {
   const remoteAudioStreamRef = useRef<MediaStream | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const outgoingCallTimeoutRef = useRef<number | null>(null);
-  const ringtoneIntervalRef = useRef<number | null>(null);
-  const ringtoneAudioContextRef = useRef<AudioContext | null>(null);
   const callAudioMonitorContextRef = useRef<AudioContext | null>(null);
   const callSpeakerMonitorRafRef = useRef<number | null>(null);
   const callElapsedTimerRef = useRef<number | null>(null);
@@ -239,58 +237,10 @@ const MessagesPage = () => {
   };
 
   const startIncomingCallRingtone = () => {
-    if (ringtoneIntervalRef.current) {
-      return;
-    }
-
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) {
-      return;
-    }
-
-    const audioContext = new AudioCtx();
-    ringtoneAudioContextRef.current = audioContext;
-
-    const beepOnce = (frequency: number, durationMs: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-
-      oscillator.type = 'sine';
-      oscillator.frequency.value = frequency;
-      gain.gain.value = 0.0001;
-
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-
-      const now = audioContext.currentTime;
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
-
-      oscillator.start();
-      oscillator.stop(now + durationMs / 1000 + 0.02);
-    };
-
-    const playPattern = () => {
-      beepOnce(880, 180);
-      window.setTimeout(() => beepOnce(740, 180), 220);
-    };
-
-    playPattern();
-    ringtoneIntervalRef.current = window.setInterval(playPattern, 1600);
+    window.dispatchEvent(new CustomEvent('taskrit:start-call-ringtone'));
   };
 
   const stopIncomingCallRingtone = () => {
-    if (ringtoneIntervalRef.current) {
-      window.clearInterval(ringtoneIntervalRef.current);
-      ringtoneIntervalRef.current = null;
-    }
-
-    if (ringtoneAudioContextRef.current) {
-      void ringtoneAudioContextRef.current.close();
-      ringtoneAudioContextRef.current = null;
-    }
-
     window.dispatchEvent(new CustomEvent('taskrit:stop-call-ringtone'));
   };
 

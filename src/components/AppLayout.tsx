@@ -105,8 +105,7 @@ const AppLayout = () => {
   const notificationSocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
-  const callRingtoneIntervalRef = useRef<number | null>(null);
-  const callRingtoneAudioContextRef = useRef<AudioContext | null>(null);
+  const callRingtoneAudioRef = useRef<HTMLAudioElement | null>(null);
   const callRingtoneStopTimerRef = useRef<number | null>(null);
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
 
@@ -120,62 +119,33 @@ const AppLayout = () => {
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
 
   const stopCallRingtone = () => {
-    if (callRingtoneIntervalRef.current) {
-      window.clearInterval(callRingtoneIntervalRef.current);
-      callRingtoneIntervalRef.current = null;
-    }
-
     if (callRingtoneStopTimerRef.current) {
       window.clearTimeout(callRingtoneStopTimerRef.current);
       callRingtoneStopTimerRef.current = null;
     }
 
-    if (callRingtoneAudioContextRef.current) {
-      void callRingtoneAudioContextRef.current.close();
-      callRingtoneAudioContextRef.current = null;
+    if (callRingtoneAudioRef.current) {
+      callRingtoneAudioRef.current.pause();
+      callRingtoneAudioRef.current.currentTime = 0;
+      callRingtoneAudioRef.current = null;
     }
   };
 
   const startCallRingtone = () => {
-    if (callRingtoneIntervalRef.current) {
+    if (callRingtoneAudioRef.current && !callRingtoneAudioRef.current.paused) {
       return;
     }
 
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) {
-      return;
-    }
+    const ringtoneSrc = `${import.meta.env.BASE_URL}ringtone_trimmed.mp3`;
+    const audio = new Audio(ringtoneSrc);
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = 0.45;
+    callRingtoneAudioRef.current = audio;
 
-    const audioContext = new AudioCtx();
-    callRingtoneAudioContextRef.current = audioContext;
-
-    const beepOnce = (frequency: number, durationMs: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-
-      oscillator.type = 'sine';
-      oscillator.frequency.value = frequency;
-      gain.gain.value = 0.0001;
-
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-
-      const now = audioContext.currentTime;
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
-
-      oscillator.start();
-      oscillator.stop(now + durationMs / 1000 + 0.02);
-    };
-
-    const playPattern = () => {
-      beepOnce(900, 170);
-      window.setTimeout(() => beepOnce(760, 170), 220);
-    };
-
-    playPattern();
-    callRingtoneIntervalRef.current = window.setInterval(playPattern, 1600);
+    void audio.play().catch(() => {
+      // 브라우저 자동재생 정책으로 재생이 차단될 수 있다.
+    });
 
     callRingtoneStopTimerRef.current = window.setTimeout(() => {
       stopCallRingtone();
@@ -183,13 +153,19 @@ const AppLayout = () => {
   };
 
   useEffect(() => {
+    const onStartCallRingtone = () => {
+      startCallRingtone();
+    };
+
     const onStopCallRingtone = () => {
       stopCallRingtone();
     };
 
+    window.addEventListener('taskrit:start-call-ringtone', onStartCallRingtone as EventListener);
     window.addEventListener('taskrit:stop-call-ringtone', onStopCallRingtone as EventListener);
 
     return () => {
+      window.removeEventListener('taskrit:start-call-ringtone', onStartCallRingtone as EventListener);
       window.removeEventListener('taskrit:stop-call-ringtone', onStopCallRingtone as EventListener);
     };
   }, []);
