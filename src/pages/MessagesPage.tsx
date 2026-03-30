@@ -2276,84 +2276,24 @@ const MessagesPage = () => {
           {selectedConversation ? (
             <>
               {/* Header */}
-              <div className="p-3 md:p-4 border-b border-border flex items-center justify-between gap-2 relative z-10">
-                <div className="flex items-center gap-2 min-w-0 relative">
-                  <button
-                    onClick={() => setMobileView('list')}
-                    className="md:hidden btn-ghost px-2 py-1 rounded-md"
-                    aria-label="채팅방 목록으로 돌아가기"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="font-semibold text-sm truncate">
-                    {selectedRoom ? roomName(selectedRoom) : '채팅'}
-                  </span>
-                  {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon />}
-
-                  <div
-                    className={`absolute left-0 top-full mt-2 w-[min(88vw,24rem)] rounded-2xl border border-border bg-surface/95 backdrop-blur shadow-2xl px-3 py-3 transition-all duration-300 ${isVoiceCallOverlayVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}
-                    aria-hidden={!isVoiceCallOverlayVisible}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2 text-xs text-text-sub min-w-0">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                        <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
-                      </div>
-                      <button
-                        onClick={handleToggleMicrophone}
-                        className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${isMicMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20' : 'bg-surface-2 border-border text-text hover:bg-surface-3'}`}
-                        title={isMicMuted ? '마이크 켜기' : '마이크 끄기'}
-                      >
-                        {isMicMuted ? '마이크 켜기' : '마이크 끄기'}
-                      </button>
-                    </div>
-
-                    <div className="flex items-start gap-3 overflow-x-auto pb-1">
-                      {getCallParticipants().map((participant) => {
-                        const speaker = callSpeakerState[participant.userUuid];
-                        const isSpeaking = !!speaker?.active;
-                        const level = speaker?.level || 0;
-                        const glowOpacity = isSpeaking ? Math.min(0.7, 0.2 + level * 0.45) : 0.08;
-
-                        return (
-                          <div key={participant.userUuid} className="w-20 shrink-0 flex flex-col items-center text-center">
-                            <div className="relative">
-                              <span
-                                className="absolute inset-0 rounded-full bg-emerald-400 blur-md transition-opacity duration-200"
-                                style={{ opacity: glowOpacity }}
-                              />
-                              <div
-                                className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 bg-surface-3 transition-all duration-200"
-                                style={{
-                                  filter: isSpeaking ? 'brightness(1.12) saturate(1.08)' : 'brightness(0.45) saturate(0.75)',
-                                  transform: isSpeaking ? 'scale(1.03)' : 'scale(1)',
-                                }}
-                              >
-                                {participant.avatarUrl ? (
-                                  <img
-                                    src={participant.avatarUrl}
-                                    alt={participant.nickname}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-text-sub">
-                                    {participant.nickname?.[0] || '?'}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <span className={`mt-1 text-[11px] truncate w-full ${isSpeaking ? 'text-emerald-500 font-semibold' : 'text-text-sub'}`}>
-                              {participant.nickname}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+              <div className="p-3 md:p-4 border-b border-border relative z-10">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      onClick={() => setMobileView('list')}
+                      className="md:hidden btn-ghost px-2 py-1 rounded-md"
+                      aria-label="채팅방 목록으로 돌아가기"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <span className="font-semibold text-sm truncate">
+                      {selectedRoom ? roomName(selectedRoom) : '채팅'}
+                    </span>
+                    {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon />}
                   </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => {
                       setSearchOpen(!searchOpen);
@@ -2397,30 +2337,79 @@ const MessagesPage = () => {
                     )}
                   </button>
                 </div>
-              </div>
+                </div>
 
-              {(isCallConnecting || isInCall) && (
-                <div className="px-3 md:px-4 py-2 border-b border-border bg-surface-2/60 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs text-text-sub min-w-0">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                    <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={handleToggleMicrophone}
-                      className={`text-xs px-2 py-1 rounded-md transition-colors ${isMicMuted ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20' : 'bg-surface-3 text-text hover:bg-surface-2'}`}
-                    >
-                      {isMicMuted ? '마이크 켜기' : '마이크 끄기'}
-                    </button>
-                    <button
-                      onClick={handleEndVoiceCall}
-                      className="text-xs px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
-                    >
-                      종료
-                    </button>
+                <div
+                  className={`overflow-hidden transition-all duration-300 ${isVoiceCallOverlayVisible ? 'max-h-80 opacity-100 mt-3' : 'max-h-0 opacity-0'}`}
+                  aria-hidden={!isVoiceCallOverlayVisible}
+                >
+                  <div className="w-full rounded-2xl border border-border bg-surface/95 backdrop-blur shadow-2xl px-4 pt-4 pb-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs text-text-sub min-w-0">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                        <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={handleToggleMicrophone}
+                          className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${isMicMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20' : 'bg-surface-2 border-border text-text hover:bg-surface-3'}`}
+                          title={isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                        >
+                          {isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                        </button>
+                        <button
+                          onClick={handleEndVoiceCall}
+                          className="text-[11px] px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+                        >
+                          종료
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 overflow-x-auto pt-4 pb-2">
+                      {getCallParticipants().map((participant) => {
+                        const speaker = callSpeakerState[participant.userUuid];
+                        const isSpeaking = !!speaker?.active;
+                        const level = speaker?.level || 0;
+                        const glowOpacity = isSpeaking ? Math.min(0.7, 0.2 + level * 0.45) : 0.08;
+
+                        return (
+                          <div key={participant.userUuid} className="w-20 shrink-0 flex flex-col items-center text-center">
+                            <div className="relative">
+                              <span
+                                className="absolute inset-0 rounded-full bg-emerald-400 blur-md transition-opacity duration-200"
+                                style={{ opacity: glowOpacity }}
+                              />
+                              <div
+                                className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 bg-surface-3 transition-all duration-200"
+                                style={{
+                                  filter: isSpeaking ? 'brightness(1.12) saturate(1.08)' : 'brightness(0.45) saturate(0.75)',
+                                  transform: isSpeaking ? 'scale(1.03)' : 'scale(1)',
+                                }}
+                              >
+                                {participant.avatarUrl ? (
+                                  <img
+                                    src={participant.avatarUrl}
+                                    alt={participant.nickname}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-text-sub">
+                                    {participant.nickname?.[0] || '?'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <span className={`mt-1 text-[11px] truncate w-full ${isSpeaking ? 'text-emerald-500 font-semibold' : 'text-text-sub'}`}>
+                              {participant.nickname}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
 
               {incomingCallState && (
                 <div className="px-3 md:px-4 py-3 border-b border-border bg-emerald-500/10 flex items-center justify-between gap-3">
