@@ -41,6 +41,14 @@ const formatSimilarity = (value: number): string => `${Math.round(value * 100)}%
 
 const formatScore = (value: number): string => value.toFixed(2);
 
+const candidateDisplayName = (candidate: { accountType: string; accountId: string; displayName?: string }): string => {
+  if (candidate.accountType === 'asset') {
+    return candidate.accountId;
+  }
+
+  return candidate.displayName || candidate.accountId;
+};
+
 const ProjectCreatePage = () => {
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -156,9 +164,7 @@ const ProjectCreatePage = () => {
       ? selectedMatchRows
         .map(({ requiredAbility, candidate }, idx) => {
           const role = requiredAbility.trim() || '역할 미정';
-          const displayId = candidate.accountType === 'asset' 
-            ? (candidate.abilityText || '이름 없는 자산')
-            : candidate.accountId;
+          const displayId = candidateDisplayName(candidate);
           const linkedAsset = candidate.linkedAssetId ? ` (조종사: ${candidate.linkedAssetId})` : '';
           return `${idx + 1}) ${toRequirementType(candidate.accountType)}/1개/${role} - ${displayId}${linkedAsset}`;
         })
@@ -168,9 +174,7 @@ const ProjectCreatePage = () => {
     const matchSummary = selectedMatchRows.length > 0
       ? `\n\n[AI 매칭 제안]\n${selectedMatchRows
         .map(({ requiredAbility, candidate }) => {
-          const displayId = candidate.accountType === 'asset' 
-            ? (candidate.abilityText || '이름 없는 자산')
-            : candidate.accountId;
+          const displayId = candidateDisplayName(candidate);
           return `- ${requiredAbility}: ${displayId} (${accountTypeLabel(candidate.accountType)}, score ${formatScore(candidate.score)})`;
         })
         .join('\n')}`
@@ -373,7 +377,7 @@ const ProjectCreatePage = () => {
                             >
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <p className="text-sm font-semibold">{candidate.accountId}</p>
+                                  <p className="text-sm font-semibold">{candidateDisplayName(candidate)}</p>
                                   <p className="text-xs text-text-sub mt-0.5">{accountTypeLabel(candidate.accountType)}</p>
                                 </div>
                                 <div className="text-right">
@@ -403,7 +407,7 @@ const ProjectCreatePage = () => {
                       <div className="flex flex-col gap-2">
                         {assetCandidates.map((candidate) => {
                           const isSelected = selectedCandidates[match.requiredAbility] === candidate.accountId;
-                          const assetName = candidate.abilityText || '이름 없는 자산';
+                          const assetName = candidateDisplayName(candidate);
                           return (
                             <button
                               key={`${match.requiredAbility}-${candidate.accountId}`}
@@ -506,9 +510,7 @@ const ProjectCreatePage = () => {
               <p className="text-xs text-text-hint uppercase tracking-wider mb-3">선택된 팀 구성</p>
               <div className="flex flex-col gap-2">
                 {selectedMatchRows.map(({ requiredAbility, candidate }, idx) => {
-                  const displayName = candidate.accountType === 'asset' 
-                    ? (candidate.abilityText || '이름 없는 자산')
-                    : candidate.accountId;
+                  const displayName = candidateDisplayName(candidate);
                   return (
                     <div key={`${requiredAbility}-${candidate.accountId}-${idx}`} className="flex items-start justify-between gap-3">
                       <div>

@@ -352,6 +352,7 @@ export interface Project {
 export interface TeamingMatchCandidate {
   accountId: string;
   accountType: string;
+  displayName?: string;
   abilityText: string;
   similarity: number;
   score: number;
