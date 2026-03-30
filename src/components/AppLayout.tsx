@@ -84,6 +84,7 @@ const AppLayout = () => {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const location = useLocation();
+  const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
   const [notifications, setNotifications] = useState<ChatNotification[]>([]);
@@ -101,6 +102,9 @@ const AppLayout = () => {
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
 
   const isDarkTheme = resolvedTheme() === 'dark';
+  const themeIcon = themeMode === 'system' ? '⚙' : isDarkTheme ? '🌙' : '☀️';
+  const themeLabel = themeMode === 'system' ? '시스템 설정' : isDarkTheme ? '다크 모드' : '라이트 모드';
+
   const profileImageSrc = user?.profile_image_url
     ? user.profile_image_url.startsWith('http') ? user.profile_image_url : `/api${user.profile_image_url}`
     : null;
@@ -397,9 +401,9 @@ const AppLayout = () => {
     setIsProfileMenuOpen((prev) => !prev);
   };
 
-  const toggleLightDarkMode = () => {
-    setThemeMode(isDarkTheme ? 'light' : 'dark');
-    setIsProfileMenuOpen(false);
+  const cycleTheme = () => {
+    const next = themeMode === 'system' ? 'dark' : themeMode === 'dark' ? 'light' : 'system';
+    setThemeMode(next);
   };
 
   return (
@@ -537,11 +541,11 @@ const AppLayout = () => {
                   className="absolute right-0 mt-2 w-44 rounded-xl border border-border bg-surface text-text shadow-2xl p-1.5 z-50"
                 >
                   <button
-                    onClick={toggleLightDarkMode}
+                    onClick={cycleTheme}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-hover transition-colors text-sm flex items-center justify-between"
                   >
-                    <span>{isDarkTheme ? '라이트 모드' : '다크 모드'}</span>
-                    <span>{isDarkTheme ? '☀️' : '🌙'}</span>
+                    <span>{themeLabel}</span>
+                    <span>{themeIcon}</span>
                   </button>
                   <button
                     onClick={() => {
