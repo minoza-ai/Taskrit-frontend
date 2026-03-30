@@ -41,15 +41,6 @@ const MessageIcon = () => {
   );
 };
 
-const UserIcon = () => {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-};
-
 const AssetIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
@@ -75,7 +66,6 @@ const navItems = [
   { to: '/marketplace', label: '마켓', icon: MarketIcon },
   { to: '/messages', label: '메시지', icon: MessageIcon },
   { to: '/my/assets', label: '내 자산', icon: AssetIcon },
-  { to: '/mypage', label: '마이페이지', icon: UserIcon },
 ];
 
 type ChatNotification = {
@@ -92,30 +82,34 @@ type ChatNotification = {
 const AppLayout = () => {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const location = useLocation();
-  const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
   const [notifications, setNotifications] = useState<ChatNotification[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isProfileImageError, setIsProfileImageError] = useState(false);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
+  const profileButtonRef = useRef<HTMLButtonElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const notificationSocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
   const callRingtoneAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
 
-  const cycleTheme = () => {
-    const next = themeMode === 'system' ? 'dark' : themeMode === 'dark' ? 'light' : 'system';
-    setThemeMode(next);
-  };
-
-  const themeIcon = themeMode === 'system' ? '⚙' : resolvedTheme() === 'dark' ? '🌙' : '☀️';
-  const themeLabel = themeMode === 'system' ? '시스템' : themeMode === 'dark' ? '다크' : '라이트';
+  const isDarkTheme = resolvedTheme() === 'dark';
+  const profileImageSrc = user?.profile_image_url
+    ? user.profile_image_url.startsWith('http') ? user.profile_image_url : `/api${user.profile_image_url}`
+    : null;
+  const profileInitial = (user?.nickname?.[0] || user?.user_id?.[0] || 'U').toUpperCase();
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
+
+  useEffect(() => {
+    setIsProfileImageError(false);
+  }, [profileImageSrc]);
 
   const stopCallRingtone = () => {
     if (callRingtoneAudioRef.current) {
@@ -126,7 +120,8 @@ const AppLayout = () => {
   };
 
   const startCallRingtone = () => {
-    if (callRingtoneAudioRef.current && !callRingtoneAudioRef.current.paused) {
+    // Prevent duplicate ringtone instances during rapid incoming-call events.
+    if (callRingtoneAudioRef.current) {
       return;
     }
 
@@ -134,11 +129,12 @@ const AppLayout = () => {
     const audio = new Audio(ringtoneSrc);
     audio.loop = true;
     audio.preload = 'auto';
-    audio.volume = 0.45;
+    audio.volume = 0.35;
     callRingtoneAudioRef.current = audio;
 
     void audio.play().catch(() => {
       // 브라우저 자동재생 정책으로 재생이 차단될 수 있다.
+      callRingtoneAudioRef.current = null;
     });
   };
 
@@ -364,8 +360,11 @@ const AppLayout = () => {
 
       if (notificationPanelRef.current?.contains(target)) return;
       if (notificationButtonRef.current?.contains(target)) return;
+      if (profileMenuRef.current?.contains(target)) return;
+      if (profileButtonRef.current?.contains(target)) return;
 
       setIsNotificationOpen(false);
+      setIsProfileMenuOpen(false);
     };
 
     document.addEventListener('mousedown', onClickOutside);
@@ -376,6 +375,7 @@ const AppLayout = () => {
   }, []);
 
   const toggleNotifications = () => {
+    setIsProfileMenuOpen(false);
     setIsNotificationOpen((prev) => {
       const next = !prev;
       if (next) {
@@ -390,6 +390,16 @@ const AppLayout = () => {
     stopCallRingtone();
     setIsNotificationOpen(false);
     navigate(`/messages?room=${encodeURIComponent(notification.roomId)}`);
+  };
+
+  const toggleProfileMenu = () => {
+    setIsNotificationOpen(false);
+    setIsProfileMenuOpen((prev) => !prev);
+  };
+
+  const toggleLightDarkMode = () => {
+    setThemeMode(isDarkTheme ? 'light' : 'dark');
+    setIsProfileMenuOpen(false);
   };
 
   return (
@@ -501,29 +511,59 @@ const AppLayout = () => {
               )}
             </div>
 
-            <button
-              onClick={cycleTheme}
-              title={`테마: ${themeLabel}`}
-              className="text-xs px-2.5 md:px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all flex items-center gap-1 md:gap-1.5"
-            >
-              <span>{themeIcon}</span>
-              <span className="hidden md:inline">{themeLabel}</span>
-            </button>
-            <button
-              onClick={() => navigate('/membership')}
-              className="text-xs px-2.5 md:px-3 py-1.5 rounded-md border border-border text-text-sub hover:text-text hover:border-text-hint transition-all"
-            >
-              멤버십
-            </button>
-            <button
-              onClick={() => {
-                logout();
-                navigate('/');
-              }}
-              className="text-xs text-text-hint hover:text-text transition-colors"
-            >
-              로그아웃
-            </button>
+            <div className="relative">
+              <button
+                ref={profileButtonRef}
+                onClick={toggleProfileMenu}
+                className="w-9 h-9 rounded-full border border-border overflow-hidden bg-surface-3 flex items-center justify-center text-sm font-semibold text-text-sub hover:border-text-hint transition-all"
+                aria-label="프로필 메뉴"
+                title="프로필 메뉴"
+              >
+                {profileImageSrc && !isProfileImageError ? (
+                  <img
+                    src={profileImageSrc}
+                    alt="프로필"
+                    className="w-full h-full object-cover"
+                    onError={() => setIsProfileImageError(true)}
+                  />
+                ) : (
+                  <span>{profileInitial}</span>
+                )}
+              </button>
+
+              {isProfileMenuOpen && (
+                <div
+                  ref={profileMenuRef}
+                  className="absolute right-0 mt-2 w-44 rounded-xl border border-border bg-surface text-text shadow-2xl p-1.5 z-50"
+                >
+                  <button
+                    onClick={toggleLightDarkMode}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-hover transition-colors text-sm flex items-center justify-between"
+                  >
+                    <span>{isDarkTheme ? '라이트 모드' : '다크 모드'}</span>
+                    <span>{isDarkTheme ? '☀️' : '🌙'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigate('/mypage');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-hover transition-colors text-sm"
+                  >
+                    설정
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigate('/membership');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-hover transition-colors text-sm"
+                  >
+                    멤버십
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
