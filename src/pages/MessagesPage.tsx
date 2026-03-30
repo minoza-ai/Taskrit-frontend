@@ -58,6 +58,8 @@ const MessagesPage = () => {
   const [isInCall, setIsInCall] = useState(false);
   const [callPeerUserUuid, setCallPeerUserUuid] = useState<string | null>(null);
   const [callStatusText, setCallStatusText] = useState<string | null>(null);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [callSpeakerState, setCallSpeakerState] = useState<Record<string, { active: boolean; level: number }>>({});
   const [incomingCallState, setIncomingCallState] = useState<{
     roomId: string;
     callerUserUuid: string;
@@ -95,13 +97,17 @@ const MessagesPage = () => {
   const rtcPeerRef = useRef<RTCPeerConnection | null>(null);
   const localAudioStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const remoteAudioStreamRef = useRef<MediaStream | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const outgoingCallTimeoutRef = useRef<number | null>(null);
   const ringtoneIntervalRef = useRef<number | null>(null);
   const ringtoneAudioContextRef = useRef<AudioContext | null>(null);
+  const callAudioMonitorContextRef = useRef<AudioContext | null>(null);
+  const callSpeakerMonitorRafRef = useRef<number | null>(null);
   const callPeerUserUuidRef = useRef<string | null>(null);
   const isCallConnectingRef = useRef(false);
   const isInCallRef = useRef(false);
+  const isMicMutedRef = useRef(false);
   const incomingCallStateRef = useRef<{
     roomId: string;
     callerUserUuid: string;
@@ -290,6 +296,96 @@ const MessagesPage = () => {
     localAudioStreamRef.current = null;
   };
 
+  const stopCallSpeakerMonitor = () => {
+    if (callSpeakerMonitorRafRef.current) {
+      window.cancelAnimationFrame(callSpeakerMonitorRafRef.current);
+      callSpeakerMonitorRafRef.current = null;
+    }
+
+    if (callAudioMonitorContextRef.current) {
+      void callAudioMonitorContextRef.current.close();
+      callAudioMonitorContextRef.current = null;
+    }
+
+    setCallSpeakerState({});
+  };
+
+  const createStreamVolumeSampler = (audioContext: AudioContext, stream: MediaStream) => {
+    const sourceNode = audioContext.createMediaStreamSource(stream);
+    const analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 1024;
+    analyserNode.smoothingTimeConstant = 0.86;
+    sourceNode.connect(analyserNode);
+
+    const waveformData = new Uint8Array(analyserNode.fftSize);
+
+    return () => {
+      analyserNode.getByteTimeDomainData(waveformData);
+
+      let energySum = 0;
+      for (let i = 0; i < waveformData.length; i += 1) {
+        const centered = (waveformData[i] - 128) / 128;
+        energySum += centered * centered;
+      }
+
+      const rms = Math.sqrt(energySum / waveformData.length);
+      return Math.min(1, rms * 18);
+    };
+  };
+
+  const startCallSpeakerMonitor = () => {
+    if (!user?.user_uuid || !localAudioStreamRef.current) {
+      return;
+    }
+
+    stopCallSpeakerMonitor();
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      return;
+    }
+
+    const audioContext = new AudioCtx();
+    callAudioMonitorContextRef.current = audioContext;
+
+    const localSampler = createStreamVolumeSampler(audioContext, localAudioStreamRef.current);
+    const remoteSampler = remoteAudioStreamRef.current
+      ? createStreamVolumeSampler(audioContext, remoteAudioStreamRef.current)
+      : null;
+
+    let lastEmitTime = 0;
+
+    const tick = () => {
+      const localLevel = localSampler();
+      const remoteLevel = remoteSampler ? remoteSampler() : 0;
+      const peerUserUuid = callPeerUserUuidRef.current;
+
+      const nextSpeakerState: Record<string, { active: boolean; level: number }> = {
+        [user.user_uuid]: {
+          active: !isMicMutedRef.current && localLevel > 0.08,
+          level: localLevel,
+        },
+      };
+
+      if (peerUserUuid) {
+        nextSpeakerState[peerUserUuid] = {
+          active: remoteLevel > 0.08,
+          level: remoteLevel,
+        };
+      }
+
+      const now = performance.now();
+      if (now - lastEmitTime >= 90) {
+        setCallSpeakerState(nextSpeakerState);
+        lastEmitTime = now;
+      }
+
+      callSpeakerMonitorRafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    callSpeakerMonitorRafRef.current = window.requestAnimationFrame(tick);
+  };
+
   const getCallTargetUserUuid = () => {
     if (!selectedRoom || !user?.user_uuid || !Array.isArray(selectedRoom.members)) {
       return null;
@@ -325,15 +421,18 @@ const MessagesPage = () => {
 
     pendingIceCandidatesRef.current = [];
     stopLocalAudioTracks();
+    stopCallSpeakerMonitor();
 
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
+    remoteAudioStreamRef.current = null;
 
     setIsCallConnecting(false);
     setIsInCall(false);
     setCallPeerUserUuid(null);
     setCallStatusText(null);
+    setIsMicMuted(false);
     setIncomingCallState(null);
     isCallConnectingRef.current = false;
     isInCallRef.current = false;
@@ -375,10 +474,15 @@ const MessagesPage = () => {
         return;
       }
 
+      remoteAudioStreamRef.current = remoteStream;
       remoteAudioRef.current.srcObject = remoteStream;
       void remoteAudioRef.current.play().catch(() => {
         // 브라우저 자동재생 정책에 막힐 수 있다. 사용자가 버튼을 눌렀으므로 대부분 재생 가능하다.
       });
+
+      if (isInCallRef.current || isCallConnectingRef.current) {
+        startCallSpeakerMonitor();
+      }
     };
 
     peerConnection.onconnectionstatechange = () => {
@@ -415,7 +519,12 @@ const MessagesPage = () => {
       video: false,
     });
 
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = true;
+    });
+
     localAudioStreamRef.current = stream;
+    setIsMicMuted(false);
     return stream;
   };
 
@@ -700,6 +809,28 @@ const MessagesPage = () => {
     cleanupVoiceCall(true);
   };
 
+  const handleToggleMicrophone = () => {
+    const localStream = localAudioStreamRef.current;
+    if (!localStream) {
+      showToast('마이크가 연결되지 않았습니다.');
+      return;
+    }
+
+    const tracks = localStream.getAudioTracks();
+    if (!tracks.length) {
+      showToast('사용 가능한 마이크 트랙이 없습니다.');
+      return;
+    }
+
+    const nextMuted = !isMicMutedRef.current;
+    tracks.forEach((track) => {
+      track.enabled = !nextMuted;
+    });
+
+    setIsMicMuted(nextMuted);
+    showToast(nextMuted ? '마이크를 껐습니다.' : '마이크를 켰습니다.');
+  };
+
   const clearSocketResources = () => {
     if (reconnectTimerRef.current) {
       window.clearTimeout(reconnectTimerRef.current);
@@ -721,6 +852,7 @@ const MessagesPage = () => {
   };
 
   const selectedRoom = rooms.find((c) => c.room_id === selectedConversation) || null;
+  const isVoiceCallOverlayVisible = isCallConnecting || isInCall;
 
   const isNearMessageBottom = () => {
     const viewport = messageViewportRef.current;
@@ -802,8 +934,21 @@ const MessagesPage = () => {
   }, [isInCall]);
 
   useEffect(() => {
+    isMicMutedRef.current = isMicMuted;
+  }, [isMicMuted]);
+
+  useEffect(() => {
     incomingCallStateRef.current = incomingCallState;
   }, [incomingCallState]);
+
+  useEffect(() => {
+    if ((isInCall || isCallConnecting) && localAudioStreamRef.current) {
+      startCallSpeakerMonitor();
+      return;
+    }
+
+    stopCallSpeakerMonitor();
+  }, [isInCall, isCallConnecting, callPeerUserUuid, user?.user_uuid]);
 
   useEffect(() => {
     const onResize = () => {
@@ -831,6 +976,7 @@ const MessagesPage = () => {
         window.clearTimeout(outgoingCallTimeoutRef.current);
       }
       stopIncomingCallRingtone();
+      stopCallSpeakerMonitor();
     };
   }, []);
 
@@ -1028,6 +1174,45 @@ const MessagesPage = () => {
       profile_image_url: found?.profile_image_url,
     };
   };
+
+  const toAvatarUrl = (profileImageUrl?: string | null) => {
+    if (!profileImageUrl) {
+      return null;
+    }
+
+    return profileImageUrl.startsWith('http') ? profileImageUrl : `/api${profileImageUrl}`;
+  };
+
+  function getCallParticipants() {
+    if (!user?.user_uuid) {
+      return [] as Array<{
+        userUuid: string;
+        nickname: string;
+        avatarUrl: string | null;
+        isMe: boolean;
+      }>;
+    }
+
+    const sourceUuids = selectedRoom?.members?.length
+      ? selectedRoom.members
+      : [user.user_uuid, ...(callPeerUserUuid ? [callPeerUserUuid] : [])];
+
+    const uniqueUuids = Array.from(new Set(sourceUuids.filter(Boolean))).slice(0, 4);
+
+    return uniqueUuids
+      .map((memberUuid) => {
+        const baseInfo = getUserByUuid(memberUuid);
+        const isMe = memberUuid === user.user_uuid;
+
+        return {
+          userUuid: memberUuid,
+          nickname: isMe ? `${user.nickname || '나'} (나)` : baseInfo.nickname,
+          avatarUrl: toAvatarUrl(baseInfo.profile_image_url),
+          isMe,
+        };
+      })
+      .sort((a, b) => Number(b.isMe) - Number(a.isMe));
+  }
 
   const getSenderDisplayName = (msg: ChatMessage) => {
     if (msg.sender_uuid === user?.user_uuid) return user?.nickname || '나';
@@ -2091,8 +2276,8 @@ const MessagesPage = () => {
           {selectedConversation ? (
             <>
               {/* Header */}
-              <div className="p-3 md:p-4 border-b border-border flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="p-3 md:p-4 border-b border-border flex items-center justify-between gap-2 relative z-10">
+                <div className="flex items-center gap-2 min-w-0 relative">
                   <button
                     onClick={() => setMobileView('list')}
                     className="md:hidden btn-ghost px-2 py-1 rounded-md"
@@ -2106,6 +2291,67 @@ const MessagesPage = () => {
                     {selectedRoom ? roomName(selectedRoom) : '채팅'}
                   </span>
                   {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon />}
+
+                  <div
+                    className={`absolute left-0 top-full mt-2 w-[min(88vw,24rem)] rounded-2xl border border-border bg-surface/95 backdrop-blur shadow-2xl px-3 py-3 transition-all duration-300 ${isVoiceCallOverlayVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}
+                    aria-hidden={!isVoiceCallOverlayVisible}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 text-xs text-text-sub min-w-0">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                        <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
+                      </div>
+                      <button
+                        onClick={handleToggleMicrophone}
+                        className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${isMicMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20' : 'bg-surface-2 border-border text-text hover:bg-surface-3'}`}
+                        title={isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                      >
+                        {isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-start gap-3 overflow-x-auto pb-1">
+                      {getCallParticipants().map((participant) => {
+                        const speaker = callSpeakerState[participant.userUuid];
+                        const isSpeaking = !!speaker?.active;
+                        const level = speaker?.level || 0;
+                        const glowOpacity = isSpeaking ? Math.min(0.7, 0.2 + level * 0.45) : 0.08;
+
+                        return (
+                          <div key={participant.userUuid} className="w-20 shrink-0 flex flex-col items-center text-center">
+                            <div className="relative">
+                              <span
+                                className="absolute inset-0 rounded-full bg-emerald-400 blur-md transition-opacity duration-200"
+                                style={{ opacity: glowOpacity }}
+                              />
+                              <div
+                                className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 bg-surface-3 transition-all duration-200"
+                                style={{
+                                  filter: isSpeaking ? 'brightness(1.12) saturate(1.08)' : 'brightness(0.45) saturate(0.75)',
+                                  transform: isSpeaking ? 'scale(1.03)' : 'scale(1)',
+                                }}
+                              >
+                                {participant.avatarUrl ? (
+                                  <img
+                                    src={participant.avatarUrl}
+                                    alt={participant.nickname}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-text-sub">
+                                    {participant.nickname?.[0] || '?'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <span className={`mt-1 text-[11px] truncate w-full ${isSpeaking ? 'text-emerald-500 font-semibold' : 'text-text-sub'}`}>
+                              {participant.nickname}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button
@@ -2159,12 +2405,20 @@ const MessagesPage = () => {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${isInCall ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
                     <span className="truncate">{callStatusText || (isInCall ? '음성 통화 중' : '통화 연결 중...')}</span>
                   </div>
-                  <button
-                    onClick={handleEndVoiceCall}
-                    className="text-xs px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
-                  >
-                    종료
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleToggleMicrophone}
+                      className={`text-xs px-2 py-1 rounded-md transition-colors ${isMicMuted ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20' : 'bg-surface-3 text-text hover:bg-surface-2'}`}
+                    >
+                      {isMicMuted ? '마이크 켜기' : '마이크 끄기'}
+                    </button>
+                    <button
+                      onClick={handleEndVoiceCall}
+                      className="text-xs px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+                    >
+                      종료
+                    </button>
+                  </div>
                 </div>
               )}
 
