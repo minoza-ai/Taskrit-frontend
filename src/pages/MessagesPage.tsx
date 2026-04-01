@@ -36,14 +36,13 @@ const MessagesPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
-  const [targetUserId, setTargetUserId] = useState('');
+  const [roomListSearchQuery, setRoomListSearchQuery] = useState('');
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setWsConnected] = useState(false);
   const [isComposingMessage, setIsComposingMessage] = useState(false);
-  const [isComposingTargetUserId, setIsComposingTargetUserId] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const [showNewMessageNotice, setShowNewMessageNotice] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -1193,6 +1192,17 @@ const MessagesPage = () => {
     return otherUser.nickname;
   };
 
+  const findDmRoomByUserUuid = (targetUserUuid: string): ChatRoom | null => {
+    const myUuid = user?.user_uuid;
+    if (!myUuid) return null;
+
+    return rooms.find((room) => (
+      room.room_type === 'dm'
+      && room.members.includes(myUuid)
+      && room.members.includes(targetUserUuid)
+    )) || null;
+  };
+
   const getUserByUuid = (userUuid: string) => {
     if (userUuid === user?.user_uuid) {
       return {
@@ -2147,17 +2157,18 @@ const MessagesPage = () => {
     void handleSend();
   };
 
-  const handleCreateDmByUserId = async () => {
+  const handleOpenOrCreateDmByUser = async (targetUser: ChatUser) => {
     if (!accessToken) return;
 
-    const inputUserId = targetUserId.trim().toLowerCase();
-    if (!inputUserId) {
-      setError('상대방 아이디를 입력해주세요.');
+    if (targetUser.user_uuid === user?.user_uuid) {
+      setError('본인과는 대화를 시작할 수 없습니다.');
       return;
     }
 
-    if (inputUserId === user?.user_id?.toLowerCase()) {
-      setError('본인 아이디로는 채팅방을 만들 수 없습니다.');
+    const existingRoom = findDmRoomByUserUuid(targetUser.user_uuid);
+    if (existingRoom) {
+      setSelectedConversation(existingRoom.room_id);
+      setMobileView('chat');
       return;
     }
 
@@ -2165,16 +2176,7 @@ const MessagesPage = () => {
     setError(null);
 
     try {
-      const users = await listChatUsers(accessToken);
-      const target = users.find((u) => u.user_id.toLowerCase() === inputUserId);
-
-      if (!target) {
-        setError('해당 아이디의 사용자를 찾을 수 없습니다.');
-        return;
-      }
-
-      const room = await createDmRoom(accessToken, target.user_uuid, `${target.nickname}님과의 대화`);
-      setTargetUserId('');
+      const room = await createDmRoom(accessToken, targetUser.user_uuid, `${targetUser.nickname}님과의 대화`);
       await loadRooms();
       setSelectedConversation(room.room_id);
       setMobileView('chat');
@@ -2193,17 +2195,31 @@ const MessagesPage = () => {
     }
   };
 
-  const handleTargetUserIdKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
+  const normalizedRoomListSearchQuery = roomListSearchQuery.trim().toLowerCase();
+  const recentChatSearchResults = normalizedRoomListSearchQuery
+    ? rooms.filter((room) => {
+      if (room.room_type === 'team') {
+        return room.room_name.toLowerCase().includes(normalizedRoomListSearchQuery);
+      }
 
-    // 한글 IME 조합 중 Enter는 글자 확정 용도이므로 제출을 막는다.
-    if (isComposingTargetUserId || e.nativeEvent.isComposing) {
-      return;
-    }
+      const otherUser = getOtherUser(room);
+      if (!otherUser) return false;
 
-    e.preventDefault();
-    void handleCreateDmByUserId();
-  };
+      return (
+        otherUser.nickname.toLowerCase().includes(normalizedRoomListSearchQuery)
+        || otherUser.user_id.toLowerCase().includes(normalizedRoomListSearchQuery)
+      );
+    })
+    : rooms;
+  const userSearchResults = normalizedRoomListSearchQuery
+    ? chatUsers
+      .filter((chatUser) => chatUser.user_uuid !== user?.user_uuid)
+      .filter((chatUser) => (
+        chatUser.nickname.toLowerCase().includes(normalizedRoomListSearchQuery)
+        || chatUser.user_id.toLowerCase().includes(normalizedRoomListSearchQuery)
+      ))
+      .sort((a, b) => Number(!!findDmRoomByUserUuid(b.user_uuid)) - Number(!!findDmRoomByUserUuid(a.user_uuid)))
+    : [];
 
   useEffect(() => {
     const originalOverflowHtml = document.documentElement.style.overflow;
@@ -2231,6 +2247,113 @@ const MessagesPage = () => {
     };
   }, []);
 
+  const isRoomListSearching = normalizedRoomListSearchQuery.length > 0;
+
+  const renderConversationListItem = (conv: ChatRoom) => {
+    const targetUser = getOtherUser(conv);
+    const profileImageUrl = targetUser?.profile_image_url
+      ? (targetUser.profile_image_url.startsWith('http') ? targetUser.profile_image_url : `/api${targetUser.profile_image_url}`)
+      : null;
+
+    return (
+      <button
+        key={conv.room_id}
+        onClick={() => {
+          setSelectedConversation(conv.room_id);
+          setMobileView('chat');
+        }}
+        className={`w-full text-left p-3 rounded-lg transition-all cursor-pointer ${selectedConversation === conv.room_id
+          ? 'bg-surface-2 border border-border'
+          : 'hover:bg-surface-2/50'
+          }`}
+      >
+        <div className="flex gap-3 items-center">
+          <div className="w-10 h-10 rounded-full bg-surface-3 flex-shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
+            {profileImageUrl ? (
+              <>
+                <img
+                  src={profileImageUrl}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.remove('hidden');
+                    e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.add('flex');
+                  }}
+                />
+                <span className="fallback-initial hidden w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold">
+                  {targetUser?.nickname?.[0] || conv.room_name?.[0] || '?'}
+                </span>
+              </>
+            ) : (targetUser?.nickname?.[0] || conv.room_name?.[0] || '?')}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1 gap-2">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="font-medium text-sm truncate">{roomName(conv)}</span>
+                {targetUser?.user_id && (
+                  <span className="text-[11px] text-text-hint truncate">@{targetUser.user_id}</span>
+                )}
+                {targetUser?.wallet_address && <VerifiedIcon />}
+              </div>
+              <span className="text-[10px] text-text-hint shrink-0">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
+              {(conv.unread_count || 0) > 0 && (
+                <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
+                  {conv.unread_count}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  const renderUserSearchItem = (chatUser: ChatUser) => {
+    const profileImageUrl = chatUser.profile_image_url
+      ? (chatUser.profile_image_url.startsWith('http') ? chatUser.profile_image_url : `/api${chatUser.profile_image_url}`)
+      : null;
+    const existingRoom = findDmRoomByUserUuid(chatUser.user_uuid);
+    const lastMessagePreview = existingRoom?.last_message?.text || '메시지가 없습니다';
+    const unreadCount = existingRoom?.unread_count || 0;
+
+    return (
+      <button
+        key={chatUser.user_uuid}
+        onClick={() => { void handleOpenOrCreateDmByUser(chatUser); }}
+        className="w-full text-left p-3 rounded-lg transition-all cursor-pointer hover:bg-surface-2/50"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-surface-3 flex-shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
+            {profileImageUrl ? (
+              <img src={profileImageUrl} alt={chatUser.nickname} className="w-full h-full object-cover" />
+            ) : (chatUser.nickname?.[0] || '?')}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-medium text-sm truncate">{chatUser.nickname}</span>
+              <span className="text-[11px] text-text-hint truncate">@{chatUser.user_id}</span>
+              {chatUser.wallet_address && <VerifiedIcon />}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-sub truncate flex-1">{lastMessagePreview}</span>
+              {unreadCount > 0 && (
+                <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div className="animate-in h-[calc(100dvh-7.375rem-1px-max(env(safe-area-inset-bottom),0.5rem))] md:h-[calc(100dvh-8.25rem)] flex flex-col overflow-hidden -mx-4 md:mx-0 -my-4 md:my-0">
       <h1 className={`text-2xl font-bold mb-4 md:mb-6 pt-3 md:pt-0 px-4 md:px-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'}`}>메시지</h1>
@@ -2239,93 +2362,54 @@ const MessagesPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-4 flex-1 min-h-0">
         {/* Conversation List */}
         <div className={`px-4 bg-surface/50 border border-border md:glass-card rounded-xl md:p-3 overflow-y-auto min-h-[22rem] md:min-h-0 ${mobileView === 'chat' ? 'hidden md:block' : 'block'} md:block`}>
-          <div className="mt-3 md:mt-0 mb-3 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <div className="mt-3 md:mt-0 mb-3">
             <input
               type="text"
-              value={targetUserId}
-              onChange={(e) => setTargetUserId(e.target.value)}
-              onCompositionStart={() => setIsComposingTargetUserId(true)}
-              onCompositionEnd={() => setIsComposingTargetUserId(false)}
-              onKeyDown={handleTargetUserIdKeyDown}
-              placeholder="상대방 아이디 입력"
+              value={roomListSearchQuery}
+              onChange={(e) => setRoomListSearchQuery(e.target.value)}
+              placeholder="닉네임 또는 @아이디로 검색"
               className="glass-input w-full min-w-0 py-2.5 px-4 rounded-md text-sm"
             />
-            <button
-              onClick={handleCreateDmByUserId}
-              disabled={creatingRoom}
-              className="btn-primary px-5 py-2.5 rounded-md text-sm disabled:opacity-60"
-            >
-              {creatingRoom ? '생성중' : '+'}
-            </button>
+            {creatingRoom && (
+              <div className="mt-1 text-[11px] text-text-hint">대화방 생성 중...</div>
+            )}
           </div>
 
-          <div className="flex flex-col gap-1">
-            {rooms.map((conv) => (
-              <button
-                key={conv.room_id}
-                onClick={() => {
-                  setSelectedConversation(conv.room_id);
-                  setMobileView('chat');
-                }}
-                className={`w-full text-left p-3 rounded-lg transition-all cursor-pointer ${selectedConversation === conv.room_id
-                    ? 'bg-surface-2 border border-border'
-                    : 'hover:bg-surface-2/50'
-                  }`}
-              >
-                <div className="flex gap-3 items-center">
-                  <div className="w-10 h-10 rounded-full bg-surface-3 flex-shrink-0 overflow-hidden flex items-center justify-center text-text-sub font-bold text-sm select-none">
-                    {(() => {
-                      const targetUser = getOtherUser(conv);
-                      if (targetUser?.profile_image_url) {
-                        return (
-                          <>
-                            <img
-                              src={targetUser.profile_image_url.startsWith('http') ? targetUser.profile_image_url : `/api${targetUser.profile_image_url}`}
-                              alt="Profile"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.remove('hidden');
-                                e.currentTarget.parentElement?.querySelector('.fallback-initial')?.classList.add('flex');
-                              }}
-                            />
-                            <span className="fallback-initial hidden w-full h-full items-center justify-center bg-surface-3 text-text-sub font-bold">
-                              {targetUser.nickname?.[0] || conv.room_name?.[0] || '?'}
-                            </span>
-                          </>
-                        );
-                      }
-                      return targetUser?.nickname?.[0] || conv.room_name?.[0] || '?';
-                    })()}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="font-medium text-sm truncate">{roomName(conv)}</span>
-                        {getOtherUser(conv)?.wallet_address && <VerifiedIcon />}
-                      </div>
-                      <span className="text-[10px] text-text-hint shrink-0 ml-1">{conv.last_message_time ? formatMessageTime(conv.last_message_time) : ''}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-sub truncate flex-1">{conv.last_message?.text || '메시지가 없습니다'}</span>
-                      {(conv.unread_count || 0) > 0 && (
-                        <span className="ml-2 bg-active text-active-text text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shrink-0">
-                          {conv.unread_count}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+          {isRoomListSearching ? (
+            <div className="space-y-4">
+              <div>
+                <div className="px-1 mb-1 text-base font-bold tracking-wide text-white">최근 채팅</div>
+                <div className="flex flex-col gap-1">
+                  {recentChatSearchResults.map((conv) => renderConversationListItem(conv))}
+                  {recentChatSearchResults.length === 0 && (
+                    <div className="text-xs text-text-hint py-3 px-2">최근 채팅 검색 결과가 없습니다.</div>
+                  )}
                 </div>
-              </button>
-            ))}
-          </div>
+              </div>
 
-          {loadingRooms && <div className="text-center py-8 text-text-hint text-sm">불러오는 중...</div>}
-          {!loadingRooms && rooms.length === 0 && (
-            <div className="text-center py-12 text-text-hint text-sm">
-              대화가 없습니다
+              <div>
+                <div className="px-1 mb-1 text-base font-bold tracking-wide text-white">사용자 검색</div>
+                <div className="flex flex-col gap-1">
+                  {userSearchResults.map((chatUser) => renderUserSearchItem(chatUser))}
+                  {userSearchResults.length === 0 && (
+                    <div className="text-xs text-text-hint py-3 px-2">사용자 검색 결과가 없습니다.</div>
+                  )}
+                </div>
+              </div>
             </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                {rooms.map((conv) => renderConversationListItem(conv))}
+              </div>
+
+              {loadingRooms && <div className="text-center py-8 text-text-hint text-sm">불러오는 중...</div>}
+              {!loadingRooms && rooms.length === 0 && (
+                <div className="text-center py-12 text-text-hint text-sm">
+                  대화가 없습니다
+                </div>
+              )}
+            </>
           )}
         </div>
 
