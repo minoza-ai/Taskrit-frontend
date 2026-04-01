@@ -616,7 +616,7 @@ const AppLayout = () => {
             </div>
 
             {user?.wallet_address && taskTokenBalance !== null && (
-              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-surface-2 mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_2px_rgba(255,255,255,0.02)] shrink-0 transition-colors" title="TASK 잔액">
+              <div className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 rounded-full border border-border bg-surface-2 mx-0.5 md:mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_2px_rgba(255,255,255,0.02)] shrink-0 transition-colors" title="TASK 잔액">
                 {taskTokenImage ? (
                   <img src={taskTokenImage} alt="TASK" className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm bg-surface-3" />
                 ) : (
