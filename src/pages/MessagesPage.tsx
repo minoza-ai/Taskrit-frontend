@@ -130,6 +130,8 @@ const MessagesPage = () => {
   const messageLoadTokenRef = useRef(0);
   const reactionLongPressTimerRef = useRef<number | null>(null);
   const reactionLongPressTriggeredKeyRef = useRef<string | null>(null);
+  const reactionTouchStartPosRef = useRef<{ x: number, y: number } | null>(null);
+
 
   const appendMessageDedup = (incoming: ChatMessage) => {
     setMessages((prev) => {
@@ -2040,15 +2042,25 @@ const MessagesPage = () => {
                 if (!isDesktopViewport) return;
                 setReactionViewerState(null);
               }}
+              onContextMenu={(e) => {
+                if (!isDesktopViewport) e.preventDefault();
+              }}
               onTouchStart={(e) => {
                 e.stopPropagation();
                 if (isDesktopViewport) return;
                 clearLongPressTimer();
                 reactionLongPressTriggeredKeyRef.current = null;
                 clearReactionLongPressTimer();
+                
+                const touchObj = e.touches[0];
+                if (touchObj) {
+                  reactionTouchStartPosRef.current = { x: touchObj.clientX, y: touchObj.clientY };
+                }
+
+                const target = e.currentTarget;
                 reactionLongPressTimerRef.current = window.setTimeout(() => {
                   reactionLongPressTriggeredKeyRef.current = reactionKey;
-                  showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji);
+                  showReactionViewer(target, message.message_id, emoji, usersByEmoji);
                 }, 450);
               }}
               onTouchEnd={(e) => {
@@ -2061,9 +2073,17 @@ const MessagesPage = () => {
               }}
               onTouchMove={(e) => {
                 e.stopPropagation();
-                clearReactionLongPressTimer();
+                if (!reactionTouchStartPosRef.current) return;
+                const touchObj = e.touches[0];
+                if (touchObj) {
+                  const dx = touchObj.clientX - reactionTouchStartPosRef.current.x;
+                  const dy = touchObj.clientY - reactionTouchStartPosRef.current.y;
+                  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                    clearReactionLongPressTimer();
+                  }
+                }
               }}
-              className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${reactedByMe
+              className={`px-2 py-0.5 rounded-full text-xs border transition-colors select-none ${reactedByMe
                 ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
                 : 'bg-surface border-border text-text-sub hover:bg-surface-2'
                 }`}
@@ -2896,7 +2916,22 @@ const MessagesPage = () => {
                 )}
 
                 {reactionViewerState && (
-                  <div className="fixed inset-0 z-50 pointer-events-none" role="presentation">
+                  <div 
+                    className={`fixed inset-0 z-50 ${isDesktopViewport ? 'pointer-events-none' : 'pointer-events-auto'}`}
+                    role="presentation"
+                    onClick={(e) => {
+                      if (!isDesktopViewport) {
+                        e.stopPropagation();
+                        setReactionViewerState(null);
+                      }
+                    }}
+                    onTouchStart={(e) => {
+                      if (!isDesktopViewport) {
+                        e.stopPropagation();
+                        setReactionViewerState(null);
+                      }
+                    }}
+                  >
                     <div
                       className="absolute w-[14rem] max-w-[70vw] rounded-xl border border-border bg-surface shadow-2xl p-2"
                       style={{
