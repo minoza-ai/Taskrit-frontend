@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { PublicKey } from '@solana/web3.js';
 import { useAuthStore } from '../lib/store';
 import { useThemeStore } from '../lib/theme';
 
@@ -91,6 +92,8 @@ const AppLayout = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileImageError, setIsProfileImageError] = useState(false);
+  const [taskTokenBalance, setTaskTokenBalance] = useState<number | null>(null);
+  const [taskTokenImage, setTaskTokenImage] = useState<string | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
   const profileButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -114,6 +117,103 @@ const AppLayout = () => {
   useEffect(() => {
     setIsProfileImageError(false);
   }, [profileImageSrc]);
+
+  useEffect(() => {
+    if (!user?.wallet_address) {
+      setTaskTokenBalance(null);
+      return;
+    }
+    
+    // Fallbacks just in case .env defaults aren't caught by Vite types
+    const mintAddress = import.meta.env.VITE_TASK_TOKEN_MINT || '3TRVYjSd1DrC4Jsn2bhpHsYCykkUZdEUK4Tok8jENMfs';
+    const rpcUrl = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+
+    let isMounted = true;
+
+    const fetchTokenImage = async () => {
+      if (taskTokenImage) return; // Already fetched
+      try {
+        const metaProgramId = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+        const mintPubKey = new PublicKey(mintAddress);
+        const [pda] = PublicKey.findProgramAddressSync(
+          [
+            new TextEncoder().encode('metadata'),
+            metaProgramId.toBytes(),
+            mintPubKey.toBytes()
+          ],
+          metaProgramId
+        );
+        
+        const response = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getAccountInfo',
+            params: [pda.toBase58(), { encoding: 'base64' }]
+          })
+        });
+        const data = await response.json();
+        
+        if (isMounted && data.result?.value?.data) {
+          const base64Data = data.result.value.data[0];
+          const decodedData = atob(base64Data);
+          const uriMatch = decodedData.match(/https?:\/\/[^\s\0]+/);
+          if (uriMatch) {
+            const uri = uriMatch[0];
+            const metaResponse = await fetch(uri);
+            const metaJson = await metaResponse.json();
+            if (isMounted && metaJson.image) {
+              const imageUrl = metaJson.image.replace('ipfs://', 'https://ipfs.io/ipfs/');
+              setTaskTokenImage(imageUrl);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch TASK token image', e);
+      }
+    };
+
+    const fetchBalance = async () => {
+      try {
+        const response = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getTokenAccountsByOwner',
+            params: [
+              user.wallet_address,
+              { mint: mintAddress },
+              { encoding: 'jsonParsed' }
+            ]
+          })
+        });
+        const data = await response.json();
+        if (isMounted && data.result?.value) {
+          const accounts = data.result.value;
+          if (accounts.length > 0) {
+            const amountString = accounts[0].account.data.parsed?.info?.tokenAmount?.uiAmountString;
+            setTaskTokenBalance(parseFloat(amountString || '0'));
+          } else {
+            setTaskTokenBalance(0);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch TASK balance', e);
+      }
+    };
+    
+    fetchTokenImage();
+    fetchBalance();
+    const intervalId = window.setInterval(fetchBalance, 30000); // refresh every 30s
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [user?.wallet_address]);
 
   const stopCallRingtone = () => {
     if (callRingtoneAudioRef.current) {
@@ -514,6 +614,21 @@ const AppLayout = () => {
                 </div>
               )}
             </div>
+
+            {user?.wallet_address && taskTokenBalance !== null && (
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-surface-2 mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_2px_rgba(255,255,255,0.02)] shrink-0 transition-colors" title="TASK 잔액">
+                {taskTokenImage ? (
+                  <img src={taskTokenImage} alt="TASK" className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm bg-surface-3" />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] font-black text-white shrink-0 shadow-sm">
+                    T
+                  </div>
+                )}
+                <span className="text-xs font-semibold text-text tabular-nums tracking-tight">
+                  {taskTokenBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })} <span className="text-[10px] text-text-hint font-medium ml-0.5">TASK</span>
+                </span>
+              </div>
+            )}
 
             <div className="relative">
               <button
