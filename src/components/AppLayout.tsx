@@ -83,6 +83,7 @@ type ChatNotification = {
 const AppLayout = () => {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const location = useLocation();
   const themeMode = useThemeStore((s) => s.mode);
@@ -679,6 +680,16 @@ const AppLayout = () => {
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-hover transition-colors text-sm"
                   >
                     멤버십
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      logout();
+                      navigate('/login');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors text-sm"
+                  >
+                    로그아웃
                   </button>
                 </div>
               )}
