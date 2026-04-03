@@ -2517,6 +2517,16 @@ const MessagesPage = () => {
               type="text"
               value={roomListSearchQuery}
               onChange={(e) => setRoomListSearchQuery(e.target.value)}
+              onFocus={async () => {
+                try {
+                  if (accessToken) {
+                    const updatedUsers = await listChatUsers(accessToken);
+                    setChatUsers(updatedUsers);
+                  }
+                } catch (err) {
+                  // Ignore silent errors
+                }
+              }}
               placeholder="닉네임 또는 @아이디로 검색"
               className="glass-input w-full min-w-0 py-2.5 px-4 rounded-md text-sm"
             />
@@ -2607,11 +2617,19 @@ const MessagesPage = () => {
                   <div className="flex items-center gap-3 shrink-0">
                   {selectedRoom && (
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setInviteSearchQuery('');
                         setInviteSelectedUsers([]);
                         setInviteRoomName('');
                         setIsInviteModalOpen(true);
+                        try {
+                          if (accessToken) {
+                            const updatedUsers = await listChatUsers(accessToken);
+                            setChatUsers(updatedUsers);
+                          }
+                        } catch (e) {
+                          // Ignore silent errors for now
+                        }
                       }}
                       className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors"
                       aria-label="단체 채팅방 초대"
@@ -3368,6 +3386,16 @@ const MessagesPage = () => {
                 placeholder="사용자 검색"
                 className="w-full glass-input py-2 px-3 rounded-lg text-sm"
                 value={inviteSearchQuery}
+                onFocus={async () => {
+                  try {
+                    if (accessToken) {
+                      const updatedUsers = await listChatUsers(accessToken);
+                      setChatUsers(updatedUsers);
+                    }
+                  } catch (err) {
+                    // Ignore silent errors
+                  }
+                }}
                 onChange={(e) => setInviteSearchQuery(e.target.value)}
               />
             </div>
