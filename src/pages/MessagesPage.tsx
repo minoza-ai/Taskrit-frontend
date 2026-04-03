@@ -2643,7 +2643,7 @@ const MessagesPage = () => {
                 
                 <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
                   {selectedProfileUser.nickname}
-                  {/* {selectedProfileUser.is_kyc_verified && <VerifiedIcon />} */}
+                  {selectedProfileUser.wallet_address && <VerifiedIcon />}
                 </h2>
                 
                 <p className="text-text-sub mb-8 font-medium">@{selectedProfileUser.user_id}</p>
