@@ -2563,6 +2563,94 @@ const MessagesPage = () => {
 
   const isRoomListSearching = normalizedRoomListSearchQuery.length > 0;
 
+  const inviteModalBody = (
+    <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
+      <h3 className="text-base font-semibold mb-4">{inviteModalMode === 'create-team-room' ? '단체 채팅방 만들기' : '현재 대화방 사용자 초대'}</h3>
+
+      <div className="mb-4 shrink-0">
+        {inviteModalMode === 'create-team-room' && (
+          <input
+            type="text"
+            placeholder="채팅방 이름 입력"
+            className="w-full glass-input py-2 px-3 rounded-lg text-sm mb-3"
+            value={inviteRoomName}
+            onChange={(e) => setInviteRoomName(e.target.value)}
+          />
+        )}
+        <input
+          type="text"
+          placeholder="사용자 검색"
+          className="w-full glass-input py-2 px-3 rounded-lg text-sm"
+          value={inviteSearchQuery}
+          onFocus={async () => {
+            try {
+              if (accessToken) {
+                const updatedUsers = await listChatUsers(accessToken);
+                setChatUsers(updatedUsers);
+              }
+            } catch {
+              // Ignore silent errors
+            }
+          }}
+          onChange={(e) => setInviteSearchQuery(e.target.value)}
+        />
+      </div>
+
+      <div className="flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border">
+        {inviteCandidateUsers
+          .map((u) => {
+            const isSelected = inviteSelectedUsers.some((selected) => selected.user_uuid === u.user_uuid);
+            return (
+              <button
+                key={u.user_uuid}
+                className={`flex items-center gap-3 w-full p-2 rounded-lg transition-colors ${isSelected ? 'bg-active/20' : 'hover:bg-surface-2'}`}
+                onClick={() => {
+                  if (isSelected) {
+                    setInviteSelectedUsers((prev) => prev.filter((p) => p.user_uuid !== u.user_uuid));
+                  } else {
+                    setInviteSelectedUsers((prev) => [...prev, u]);
+                  }
+                }}
+              >
+                <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-active border-active' : 'border-border'}`}>
+                  {isSelected && <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                <div className="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center shrink-0">
+                  {u.profile_image_url ? (
+                    <img src={u.profile_image_url.startsWith('http') ? u.profile_image_url : `/api${u.profile_image_url}`} alt="profile" className="w-full h-full rounded-full object-cover" />
+                  ) : u.nickname[0]}
+                </div>
+                <div className="flex-1 text-left truncate text-sm">
+                  {u.nickname}
+                </div>
+              </button>
+            );
+          })}
+        {inviteCandidateUsers.length === 0 && (
+          <div className="text-center text-sm text-text-hint py-4">
+            {inviteModalMode === 'create-team-room' ? '사용자가 없습니다' : '초대 가능한 사용자가 없습니다'}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2 justify-end shrink-0 pt-2">
+        <button
+          className="btn-secondary px-4 py-2 rounded-md text-sm"
+          onClick={() => setIsInviteModalOpen(false)}
+        >
+          취소
+        </button>
+        <button
+          className="btn-primary px-4 py-2 rounded-md text-sm"
+          onClick={() => void handleCreateTeamGroupRoom()}
+          disabled={isInviting || inviteSelectedUsers.length === 0}
+        >
+          {isInviting ? '처리 중...' : inviteModalMode === 'create-team-room' ? '단체방 만들기' : `${inviteSelectedUsers.length}명 초대`}
+        </button>
+      </div>
+    </div>
+  );
+
   const renderConversationListItem = (conv: ChatRoom) => {
     const targetUser = getOtherUser(conv);
     const profileImageUrl = targetUser?.profile_image_url
@@ -3177,6 +3265,18 @@ const MessagesPage = () => {
                 </div>
               )}
 
+              {isInviteModalOpen && inviteModalMode === 'invite-into-room' && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="현재 대화방 사용자 초대">
+                  <button
+                    type="button"
+                    className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+                    onClick={() => setIsInviteModalOpen(false)}
+                    aria-label="초대 팝업 닫기"
+                  />
+                  {inviteModalBody}
+                </div>
+              )}
+
               {incomingCallState && (
                 <div className="px-3 md:px-4 py-3 border-b border-border bg-emerald-500/10 flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -3761,93 +3861,9 @@ const MessagesPage = () => {
           />
         </div>
       )}
-      {isInviteModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={inviteModalMode === 'create-team-room' ? '단체 채팅방 만들기' : '현재 대화방 사용자 초대'}>
-          <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
-            <h3 className="text-base font-semibold mb-4">{inviteModalMode === 'create-team-room' ? '단체 채팅방 만들기' : '현재 대화방 사용자 초대'}</h3>
-            
-            <div className="mb-4 shrink-0">
-              {inviteModalMode === 'create-team-room' && (
-                <input 
-                  type="text"
-                  placeholder="채팅방 이름 입력"
-                  className="w-full glass-input py-2 px-3 rounded-lg text-sm mb-3"
-                  value={inviteRoomName}
-                  onChange={(e) => setInviteRoomName(e.target.value)}
-                />
-              )}
-              <input 
-                type="text"
-                placeholder="사용자 검색"
-                className="w-full glass-input py-2 px-3 rounded-lg text-sm"
-                value={inviteSearchQuery}
-                onFocus={async () => {
-                  try {
-                    if (accessToken) {
-                      const updatedUsers = await listChatUsers(accessToken);
-                      setChatUsers(updatedUsers);
-                    }
-                  } catch {
-                    // Ignore silent errors
-                  }
-                }}
-                onChange={(e) => setInviteSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border">
-              {inviteCandidateUsers
-                .map(u => {
-                  const isSelected = inviteSelectedUsers.some(selected => selected.user_uuid === u.user_uuid);
-                  return (
-                    <button
-                      key={u.user_uuid}
-                      className={`flex items-center gap-3 w-full p-2 rounded-lg transition-colors ${isSelected ? 'bg-active/20' : 'hover:bg-surface-2'}`}
-                      onClick={() => {
-                        if (isSelected) {
-                          setInviteSelectedUsers(prev => prev.filter(p => p.user_uuid !== u.user_uuid));
-                        } else {
-                          setInviteSelectedUsers(prev => [...prev, u]);
-                        }
-                      }}
-                    >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-active border-active' : 'border-border'}`}>
-                        {isSelected && <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center shrink-0">
-                        {u.profile_image_url ? (
-                          <img src={u.profile_image_url.startsWith('http') ? u.profile_image_url : `/api${u.profile_image_url}`} alt="profile" className="w-full h-full rounded-full object-cover" />
-                        ) : u.nickname[0]}
-                      </div>
-                      <div className="flex-1 text-left truncate text-sm">
-                        {u.nickname}
-                      </div>
-                    </button>
-                  );
-              })}
-              {inviteCandidateUsers.length === 0 && (
-                <div className="text-center text-sm text-text-hint py-4">
-                  {inviteModalMode === 'create-team-room' ? '사용자가 없습니다' : '초대 가능한 사용자가 없습니다'}
-                </div>
-              )}
-            </div>
-            
-            <div className="flex gap-2 justify-end shrink-0 pt-2">
-              <button 
-                className="btn-secondary px-4 py-2 rounded-md text-sm"
-                onClick={() => setIsInviteModalOpen(false)}
-              >
-                취소
-              </button>
-              <button 
-                className="btn-primary px-4 py-2 rounded-md text-sm"
-                onClick={() => void handleCreateTeamGroupRoom()}
-                disabled={isInviting || inviteSelectedUsers.length === 0}
-              >
-                {isInviting ? '처리 중...' : inviteModalMode === 'create-team-room' ? '단체방 만들기' : `${inviteSelectedUsers.length}명 초대`}
-              </button>
-            </div>
-          </div>
+      {isInviteModalOpen && inviteModalMode === 'create-team-room' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="단체 채팅방 만들기">
+          {inviteModalBody}
         </div>
       )}
       {toastMessage && (
