@@ -1456,9 +1456,6 @@ const MessagesPage = () => {
 
       setRooms(roomData);
       setChatUsers(userData);
-      if (!selectedConversation && roomData.length > 0) {
-        setSelectedConversation(roomData[0].room_id);
-      }
     } catch (err: any) {
       if (err.status === 401) {
         const refreshed = await tryRefresh();
