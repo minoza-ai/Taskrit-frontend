@@ -3539,7 +3539,7 @@ const MessagesPage = () => {
                               // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
                               style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
-                              {!isMe && selectedRoom?.room_type === 'team' && !isPreviousSameSender && (
+                              {!isMe && (
                                 <div className="mb-1 flex items-center gap-1.5 min-w-0">
                                   <span className="text-[12px] font-semibold text-text truncate">
                                     {getSenderDisplayName(msg)}
