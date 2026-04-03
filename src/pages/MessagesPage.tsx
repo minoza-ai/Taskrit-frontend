@@ -1275,6 +1275,7 @@ const MessagesPage = () => {
       return {
         nickname: user?.nickname || '나',
         profile_image_url: user?.profile_image_url,
+        wallet_address: user?.wallet_address,
       };
     }
 
@@ -1282,7 +1283,12 @@ const MessagesPage = () => {
     return {
       nickname: found?.nickname || '알 수 없음',
       profile_image_url: found?.profile_image_url,
+      wallet_address: found?.wallet_address,
     };
+  };
+
+  const isWalletVerifiedUser = (userUuid: string) => {
+    return !!getUserByUuid(userUuid).wallet_address;
   };
 
   const getUserByIdentifier = (identifier: string) => {
@@ -3286,6 +3292,7 @@ const MessagesPage = () => {
                                 <span className={`text-[15px] font-semibold truncate ${isMe ? 'text-blue-500 dark:text-blue-400' : 'text-text'}`}>
                                   {senderName}
                                 </span>
+                                {isWalletVerifiedUser(msg.sender_uuid) && <VerifiedIcon tooltipPlacement="bottom" />}
                                 <span className="text-[11px] text-text-hint shrink-0">{formatMessageTime(msg.created_at)}</span>
                                 {msg.is_edited && <span className="text-[10px] text-text-hint shrink-0">수정됨</span>}
                                 {isMe && (msg.unread_member_count || 0) > 0 && (
@@ -3369,6 +3376,14 @@ const MessagesPage = () => {
                               // break-word를 CSS로 강제 적용하여 아주 긴 영문/숫자가 영역을 뚫지 못하게 합니다.
                               style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
+                              {!isMe && selectedRoom?.room_type === 'team' && !isPreviousSameSender && (
+                                <div className="mb-1 flex items-center gap-1.5 min-w-0">
+                                  <span className="text-[12px] font-semibold text-text truncate">
+                                    {getSenderDisplayName(msg)}
+                                  </span>
+                                  {isWalletVerifiedUser(msg.sender_uuid) && <VerifiedIcon tooltipPlacement="bottom" />}
+                                </div>
+                              )}
                               {renderReplyPreview(msg, isMe, 'bubble')}
 
                               {/* 말풍선 꼬리 (이미지가 아닐 때만 표시) */}
