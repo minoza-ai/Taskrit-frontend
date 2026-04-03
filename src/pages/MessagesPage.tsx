@@ -3427,6 +3427,7 @@ const MessagesPage = () => {
                     const isReplyingTarget = replyingMessage?.message_id === msg.message_id;
                     const isImageFile = !isDeleted && msg.message_type === 'file' && (msg.mime_type?.startsWith('image/') || msg.file_name?.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i));
                     const isPreviousSameSender = index > 0 && filteredMessages[index - 1].sender_uuid === msg.sender_uuid;
+                    const showTeamUnreadCount = selectedRoom?.room_type === 'team' && (msg.unread_member_count || 0) > 0;
 
                     if (messageStyle === 'irc') {
                       const senderName = getSenderDisplayName(msg);
@@ -3475,7 +3476,7 @@ const MessagesPage = () => {
                                 {isWalletVerifiedUser(msg.sender_uuid) && <VerifiedIcon tooltipPlacement="bottom" />}
                                 <span className="text-[11px] text-text-hint shrink-0">{formatMessageTime(msg.created_at)}</span>
                                 {msg.is_edited && <span className="text-[10px] text-text-hint shrink-0">수정됨</span>}
-                                {isMe && (msg.unread_member_count || 0) > 0 && (
+                                {showTeamUnreadCount && (
                                   <span className="text-[10px] font-semibold text-amber-500 shrink-0">읽지 않음 {msg.unread_member_count}</span>
                                 )}
                               </div>
@@ -3530,7 +3531,7 @@ const MessagesPage = () => {
                                 ⋯
                               </button>
                             )}
-                            {(msg.unread_member_count || 0) > 0 && (
+                            {showTeamUnreadCount && (
                               <span className="font-semibold text-amber-500 mb-[2px]">
                                 {msg.unread_member_count}
                               </span>
@@ -3608,6 +3609,11 @@ const MessagesPage = () => {
                               </button>
                             )}
                             <div className="flex flex-col items-start">
+                              {showTeamUnreadCount && (
+                                <span className="font-semibold text-amber-500 mb-[2px]">
+                                  {msg.unread_member_count}
+                                </span>
+                              )}
                               <span>{formatMessageTime(msg.created_at)}</span>
                               {msg.is_edited && <span className="text-[8px]">수정됨</span>}
                             </div>
