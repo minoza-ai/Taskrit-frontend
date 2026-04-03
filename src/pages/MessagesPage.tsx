@@ -1060,9 +1060,6 @@ const MessagesPage = () => {
         window.clearInterval(callElapsedTimerRef.current);
         callElapsedTimerRef.current = null;
       }
-      if (!hasOngoingOrIncomingCall) {
-        stopIncomingCallRingtone();
-      }
       stopCallSpeakerMonitor();
     };
   }, []);
@@ -1655,7 +1652,6 @@ const MessagesPage = () => {
     setCallStatusText('수신 중...');
     startIncomingCallRingtone();
   }, [incomingCallState, isCallConnecting, isInCall, user?.user_uuid]);
-  clearPendingIncomingCall();
 
   useEffect(() => {
     const targetRoomId = searchParams.get('room');

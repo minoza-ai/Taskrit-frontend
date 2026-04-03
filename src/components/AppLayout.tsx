@@ -506,7 +506,9 @@ const AppLayout = () => {
 
     return () => {
       disposed = true;
-      stopCallRingtone();
+      if (!readPendingIncomingCall()) {
+        stopCallRingtone();
+      }
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
