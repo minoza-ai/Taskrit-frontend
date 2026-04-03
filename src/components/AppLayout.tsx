@@ -335,6 +335,12 @@ const AppLayout = () => {
         return 'ws://localhost:3001/ws';
       }
 
+      // In production, connect directly to chat subdomain websocket to avoid
+      // root-domain proxy websocket upgrade mismatches.
+      if (window.location.hostname === 'taskr.it' || window.location.hostname === 'www.taskr.it') {
+        return `${wsProtocol}://chat.taskr.it/ws`;
+      }
+
       return `${wsProtocol}://${window.location.host}/chat-ws`;
     };
 
