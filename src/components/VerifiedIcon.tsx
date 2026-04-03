@@ -1,6 +1,14 @@
 const VERIFIED_TOOLTIP_TEXT = '가상화폐 지갑 인증이 완료된 사용자입니다.';
 
-const VerifiedIcon = () => {
+type VerifiedIconProps = {
+  tooltipPlacement?: 'top' | 'bottom';
+};
+
+const VerifiedIcon = ({ tooltipPlacement = 'top' }: VerifiedIconProps) => {
+  const tooltipPositionClass = tooltipPlacement === 'bottom'
+    ? 'top-full mt-2'
+    : 'bottom-full mb-2';
+
   return (
     <span
       className="relative inline-flex items-center align-middle group"
@@ -22,7 +30,7 @@ const VerifiedIcon = () => {
       </svg>
       <span
         role="tooltip"
-        className="pointer-events-none absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 z-[120]"
+        className={`pointer-events-none absolute left-1/2 ${tooltipPositionClass} -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 z-[120]`}
       >
         {VERIFIED_TOOLTIP_TEXT}
       </span>

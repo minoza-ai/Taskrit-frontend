@@ -616,7 +616,7 @@ const AppLayout = () => {
             {user && (
               <div className="flex items-center gap-1">
                 <span className="text-xs text-text-hint font-normal truncate max-w-24 md:max-w-none">{user.nickname}</span>
-                {user.wallet_address && <VerifiedIcon />}
+                {user.wallet_address && <VerifiedIcon tooltipPlacement="bottom" />}
               </div>
             )}
           </div>
