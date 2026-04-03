@@ -1677,8 +1677,16 @@ const MessagesPage = () => {
   }, [accessToken]);
 
   useEffect(() => {
-    const handleNewChatNotification = () => {
+    const handleNewChatNotification = (event: Event) => {
+      const customEvent = event as CustomEvent<{ roomId?: string; messageId?: string }>;
+      const roomId = customEvent.detail?.roomId;
+
       void loadRooms();
+
+      // 현재 보고 있는 방에 대한 알림이면 메시지 목록도 즉시 동기화한다.
+      if (roomId && selectedConversation && roomId === selectedConversation) {
+        void loadMessages(selectedConversation);
+      }
     };
 
     window.addEventListener('taskrit:new-chat-notification', handleNewChatNotification as EventListener);
@@ -1686,7 +1694,7 @@ const MessagesPage = () => {
     return () => {
       window.removeEventListener('taskrit:new-chat-notification', handleNewChatNotification as EventListener);
     };
-  }, [accessToken]);
+  }, [accessToken, selectedConversation]);
 
   useEffect(() => {
     const handleIncomingCallNotification = (event: Event) => {
