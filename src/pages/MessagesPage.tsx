@@ -3401,18 +3401,6 @@ const MessagesPage = () => {
                   </div>
                 )}
 
-                {toastMessage && (
-                  <div
-                    className="absolute left-1/2 -translate-x-1/2 bottom-4 z-50 px-4 py-3 text-sm rounded-lg bg-black/90 text-white shadow-lg"
-                    style={{
-                      animation: toastMessage ? 'slideUp 0.2s ease-out forwards' : 'slideOut 0.2s ease-out forwards',
-                      transform: 'translateX(-50%)',
-                    }}
-                  >
-                    {toastMessage}
-                  </div>
-                )}
-
                 {showNewMessageNotice && (
                   <button
                     onClick={() => scrollMessagesToBottom('smooth')}
@@ -3632,6 +3620,17 @@ const MessagesPage = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {toastMessage && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 bottom-4 z-[110] px-4 py-3 text-sm rounded-lg bg-black/90 text-white shadow-lg"
+          style={{
+            animation: toastMessage ? 'slideUp 0.2s ease-out forwards' : 'slideOut 0.2s ease-out forwards',
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {toastMessage}
         </div>
       )}
     </div>

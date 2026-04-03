@@ -645,26 +645,11 @@ export async function sendRoomMessage(token: string, roomId: string, text: strin
 }
 
 export async function reportUser(token: string, target_user_uuid: string, reason: string = ''): Promise<{ message: string }> {
-  // Use core API, not chat API
-  const url = `${API_BASE}/users/${target_user_uuid}/report`;
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-
-  const response = await fetch(url, {
+  return request(`/user/${target_user_uuid}/report`, {
     method: 'POST',
-    headers,
+    headers: authHeaders(token),
     body: JSON.stringify({ reason }),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw { status: response.status, message: errorData.error || 'Failed to report user' };
-  }
-
-  return response.json();
 }
 
 export async function deleteRoomMessage(
