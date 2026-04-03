@@ -59,6 +59,7 @@ const MessagesPage = () => {
   const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRoomMembersPopupOpen, setIsRoomMembersPopupOpen] = useState(false);
   
   // Group Chat Invite State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -1284,6 +1285,70 @@ const MessagesPage = () => {
     };
   };
 
+  const getUserByIdentifier = (identifier: string) => {
+    if (!identifier) {
+      return null;
+    }
+
+    if (identifier === user?.user_uuid || identifier === user?.user_id) {
+      return {
+        user_uuid: user?.user_uuid || identifier,
+        user_id: user?.user_id || identifier,
+        nickname: user?.nickname || '나',
+        wallet_address: user?.wallet_address,
+      };
+    }
+
+    const found = chatUsers.find(
+      (chatUser) => chatUser.user_uuid === identifier || chatUser.user_id === identifier,
+    );
+
+    if (found) {
+      return {
+        user_uuid: found.user_uuid,
+        user_id: found.user_id,
+        nickname: found.nickname,
+        wallet_address: found.wallet_address,
+      };
+    }
+
+    return {
+      user_uuid: identifier,
+      user_id: identifier,
+      nickname: '알 수 없음',
+      wallet_address: null,
+    };
+  };
+
+  const currentRoomMembers: Array<{
+    user_uuid: string;
+    user_id: string;
+    nickname: string;
+    wallet_address: string | null;
+    isMe: boolean;
+  }> = selectedRoom
+    ? Array.from(new Set((selectedRoom.members || []).filter(Boolean)))
+      .reduce<Array<{
+        user_uuid: string;
+        user_id: string;
+        nickname: string;
+        wallet_address: string | null;
+        isMe: boolean;
+      }>>((acc, memberIdentifier) => {
+        const member = getUserByIdentifier(memberIdentifier);
+        if (!member) return acc;
+
+        const isMe = member.user_uuid === user?.user_uuid || member.user_id === user?.user_id;
+        acc.push({
+          ...member,
+          wallet_address: member.wallet_address ?? null,
+          isMe,
+        });
+        return acc;
+      }, [])
+      .sort((a, b) => Number(b.isMe) - Number(a.isMe))
+    : [];
+
   const toAvatarUrl = (profileImageUrl?: string | null) => {
     if (!profileImageUrl) {
       return null;
@@ -2486,6 +2551,10 @@ const MessagesPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    setIsRoomMembersPopupOpen(false);
+  }, [selectedConversation]);
+
   const isRoomListSearching = normalizedRoomListSearchQuery.length > 0;
 
   const renderConversationListItem = (conv: ChatRoom) => {
@@ -2890,6 +2959,22 @@ const MessagesPage = () => {
                   <div className="flex items-center gap-3 shrink-0">
                   {selectedRoom && (
                     <button
+                      type="button"
+                      onClick={() => setIsRoomMembersPopupOpen(true)}
+                      className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors"
+                      aria-label="현재 채팅방 참여자 보기"
+                      title="현재 채팅방 참여자 보기"
+                    >
+                      <svg className="w-5 h-5 text-text-hint hover:text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                        <circle cx="9" cy="7" r="4" strokeWidth={2} />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M23 21v-2a4 4 0 00-3-3.87" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3.13a4 4 0 010 7.75" />
+                      </svg>
+                    </button>
+                  )}
+                  {selectedRoom && (
+                    <button
                       onClick={() => void openInviteModal('invite-into-room')}
                       className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors"
                       aria-label="현재 대화방에 사용자 초대"
@@ -3040,6 +3125,51 @@ const MessagesPage = () => {
                   </div>
                 </div>
               </div>
+
+              {isRoomMembersPopupOpen && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="채팅방 참여자 목록">
+                  <button
+                    type="button"
+                    className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+                    onClick={() => setIsRoomMembersPopupOpen(false)}
+                    aria-label="참여자 목록 닫기"
+                  />
+                  <div className="relative w-full max-w-sm max-h-[75%] rounded-2xl border border-border bg-surface shadow-2xl flex flex-col overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">대화 참여자</h3>
+                      <button
+                        type="button"
+                        onClick={() => setIsRoomMembersPopupOpen(false)}
+                        className="p-1 rounded-md hover:bg-surface-2 transition-colors"
+                        aria-label="참여자 목록 닫기"
+                      >
+                        <svg className="w-4 h-4 text-text-hint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="overflow-y-auto p-3 space-y-2">
+                      {currentRoomMembers.map((member) => (
+                        <div key={`${member.user_uuid}-${member.user_id}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-1/70 px-3 py-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm font-semibold truncate">
+                                {member.isMe ? `${member.nickname} (나)` : member.nickname}
+                              </span>
+                              {member.wallet_address && <VerifiedIcon tooltipPlacement="bottom" />}
+                            </div>
+                            <div className="text-xs text-text-hint truncate">@{member.user_id}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {currentRoomMembers.length === 0 && (
+                        <div className="text-center text-sm text-text-hint py-4">표시할 참여자 정보가 없습니다.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {incomingCallState && (
                 <div className="px-3 md:px-4 py-3 border-b border-border bg-emerald-500/10 flex items-center justify-between gap-3">
