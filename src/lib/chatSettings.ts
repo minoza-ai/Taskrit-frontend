@@ -19,7 +19,7 @@ function loadOptimizeUploadedImages(): boolean {
 function loadMessageStyle(): 'bubble' | 'irc' {
   const saved = localStorage.getItem(MESSAGE_STYLE_STORAGE_KEY);
   if (saved === 'irc') return 'irc';
-  return 'bubble';
+  return 'irc';
 }
 
 export const useChatSettingsStore = create<ChatSettingsState>((set) => ({
