@@ -2503,7 +2503,7 @@ const MessagesPage = () => {
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-medium text-sm truncate">{chatUser.nickname}</span>
               <span className="text-[11px] text-text-hint truncate">@{chatUser.user_id}</span>
-              {chatUser.wallet_address && <VerifiedIcon />}
+              {chatUser.wallet_address && <VerifiedIcon tooltipPlacement="bottom" />}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-sub truncate flex-1">{lastMessagePreview}</span>
@@ -2790,7 +2790,7 @@ const MessagesPage = () => {
                     <span className="font-semibold text-sm truncate">
                       {selectedRoom ? roomName(selectedRoom) : '채팅'}
                     </span>
-                    {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon />}
+                    {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon tooltipPlacement="bottom" />}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                   {selectedRoom && (
