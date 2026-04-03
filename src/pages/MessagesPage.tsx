@@ -2289,6 +2289,7 @@ const MessagesPage = () => {
         );
         
         if (existingDmRoom) {
+          showToast('이미 1대1 대화가 존재합니다.');
           setIsInviteModalOpen(false);
           setInviteSelectedUsers([]);
           setInviteRoomName('');
