@@ -2601,7 +2601,10 @@ const MessagesPage = () => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <button
-                      onClick={() => setMobileView('list')}
+                      onClick={() => {
+                        setMobileView('list');
+                        setSelectedConversation(null);
+                      }}
                       className="md:hidden btn-ghost px-2 py-1 rounded-md"
                       aria-label="채팅방 목록으로 돌아가기"
                     >
