@@ -100,6 +100,7 @@ const MessagesPage = () => {
     users: string[];
     x: number;
     y: number;
+    interactionMode: 'hover' | 'touch';
   } | null>(null);
 
   // File Upload State
@@ -1153,7 +1154,8 @@ const MessagesPage = () => {
     target: HTMLElement,
     messageId: string,
     emoji: string,
-    usersByEmoji: string[]
+    usersByEmoji: string[],
+    interactionMode: 'hover' | 'touch' = 'hover',
   ) => {
     const rect = target.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -1166,6 +1168,7 @@ const MessagesPage = () => {
       users: usersByEmoji,
       x: clampedX,
       y,
+      interactionMode,
     });
   };
 
@@ -2250,12 +2253,10 @@ const MessagesPage = () => {
               }}
               onMouseEnter={(e) => {
                 e.stopPropagation();
-                if (!isDesktopViewport) return;
-                showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji);
+                showReactionViewer(e.currentTarget, message.message_id, emoji, usersByEmoji, 'hover');
               }}
               onMouseLeave={(e) => {
                 e.stopPropagation();
-                if (!isDesktopViewport) return;
                 setReactionViewerState(null);
               }}
               onContextMenu={(e) => {
@@ -2276,7 +2277,7 @@ const MessagesPage = () => {
                 const target = e.currentTarget;
                 reactionLongPressTimerRef.current = window.setTimeout(() => {
                   reactionLongPressTriggeredKeyRef.current = reactionKey;
-                  showReactionViewer(target, message.message_id, emoji, usersByEmoji);
+                  showReactionViewer(target, message.message_id, emoji, usersByEmoji, 'touch');
                 }, 450);
               }}
               onTouchEnd={(e) => {
@@ -3782,16 +3783,16 @@ const MessagesPage = () => {
 
                 {reactionViewerState && (
                   <div 
-                    className={`fixed inset-0 z-50 ${isDesktopViewport ? 'pointer-events-none' : 'pointer-events-auto'}`}
+                    className={`fixed inset-0 z-50 ${(isDesktopViewport || reactionViewerState.interactionMode === 'hover') ? 'pointer-events-none' : 'pointer-events-auto'}`}
                     role="presentation"
                     onClick={(e) => {
-                      if (!isDesktopViewport) {
+                      if (!isDesktopViewport && reactionViewerState.interactionMode === 'touch') {
                         e.stopPropagation();
                         setReactionViewerState(null);
                       }
                     }}
                     onTouchStart={(e) => {
-                      if (!isDesktopViewport) {
+                      if (!isDesktopViewport && reactionViewerState.interactionMode === 'touch') {
                         e.stopPropagation();
                         setReactionViewerState(null);
                       }
