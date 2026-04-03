@@ -2383,7 +2383,12 @@ const MessagesPage = () => {
   const handleCreateTeamGroupRoom = async () => {
     if (!accessToken) return;
 
-    if (inviteSelectedUsers.length === 0) {
+    if (inviteModalMode === 'create-team-room' && inviteSelectedUsers.length < 2) {
+      showToast('단체 채팅방은 2명 이상 선택해야 생성할 수 있습니다.');
+      return;
+    }
+
+    if (inviteModalMode === 'invite-into-room' && inviteSelectedUsers.length === 0) {
       showToast('초대할 사용자를 1명 이상 선택해주세요.');
       return;
     }
@@ -2412,30 +2417,6 @@ const MessagesPage = () => {
         await loadMessages(updatedRoom.room_id);
         showToast('사용자를 대화방에 초대했습니다.');
         return;
-      }
-
-      // 새 단체방 생성 시, 1명만 선택하면 기존 1:1 대화방을 우선 재사용한다.
-      if (inviteSelectedUsers.length === 1 && user?.user_uuid) {
-        const selectedUserUuid = inviteSelectedUsers[0].user_uuid;
-        const existingDmRoom = rooms.find(
-          (room) =>
-            room.room_type === 'dm' &&
-            room.members.length === 2 &&
-            room.members.includes(user.user_uuid) &&
-            room.members.includes(selectedUserUuid),
-        );
-
-        if (existingDmRoom) {
-          showToast('이미 1대1 대화가 존재합니다.');
-          setIsInviteModalOpen(false);
-          setInviteSelectedUsers([]);
-          setInviteRoomName('');
-          setInviteSearchQuery('');
-          setSelectedConversation(existingDmRoom.room_id);
-          setMobileView('chat');
-          await loadMessages(existingDmRoom.room_id);
-          return;
-        }
       }
 
       const uids = inviteSelectedUsers.map((u) => u.user_uuid);
@@ -2545,7 +2526,9 @@ const MessagesPage = () => {
       );
     })
     .filter((chatUser) => {
-      if (!inviteSearchNormalized) return true;
+      if (!inviteSearchNormalized) {
+        return inviteModalMode !== 'create-team-room';
+      }
       return (
         chatUser.nickname.toLowerCase().includes(inviteSearchNormalized)
         || chatUser.user_id.toLowerCase().includes(inviteSearchNormalized)
@@ -2685,7 +2668,9 @@ const MessagesPage = () => {
           })}
         {inviteCandidateUsers.length === 0 && (
           <div className="text-center text-sm text-text-hint py-4">
-            {inviteModalMode === 'create-team-room' ? '사용자가 없습니다' : '초대 가능한 사용자가 없습니다'}
+            {inviteModalMode === 'create-team-room'
+              ? (inviteSearchNormalized ? '사용자가 없습니다' : '사용자를 검색해주세요')
+              : '초대 가능한 사용자가 없습니다'}
           </div>
         )}
       </div>
@@ -2700,7 +2685,7 @@ const MessagesPage = () => {
         <button
           className="btn-primary px-4 py-2 rounded-md text-sm"
           onClick={() => void handleCreateTeamGroupRoom()}
-          disabled={isInviting || inviteSelectedUsers.length === 0}
+          disabled={isInviting || (inviteModalMode === 'create-team-room' ? inviteSelectedUsers.length < 2 : inviteSelectedUsers.length === 0)}
         >
           {isInviting ? '처리 중...' : inviteModalMode === 'create-team-room' ? '단체방 만들기' : `${inviteSelectedUsers.length}명 초대`}
         </button>
