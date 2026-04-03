@@ -2278,6 +2278,29 @@ const MessagesPage = () => {
 
     setIsInviting(true);
     try {
+      // If only 1 user is selected, check for existing 1-on-1 DM room
+      if (inviteSelectedUsers.length === 1 && user?.user_uuid) {
+        const selectedUserUuid = inviteSelectedUsers[0].user_uuid;
+        const existingDmRoom = rooms.find(room => 
+          room.room_type === 'dm' && 
+          room.members.length === 2 &&
+          room.members.includes(user.user_uuid) &&
+          room.members.includes(selectedUserUuid)
+        );
+        
+        if (existingDmRoom) {
+          setIsInviteModalOpen(false);
+          setInviteSelectedUsers([]);
+          setInviteRoomName('');
+          setInviteSearchQuery('');
+          setSelectedConversation(existingDmRoom.room_id);
+          setMobileView('chat');
+          await loadMessages(existingDmRoom.room_id);
+          setIsInviting(false);
+          return;
+        }
+      }
+
       const uids = inviteSelectedUsers.map((u) => u.user_uuid);
       const defaultRoomName = inviteRoomName.trim() || `${user?.nickname || '나'}, ${inviteSelectedUsers.map(u => u.nickname).join(', ')}의 단체방`;
       
