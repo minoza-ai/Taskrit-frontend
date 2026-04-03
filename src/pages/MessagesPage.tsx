@@ -229,14 +229,27 @@ const MessagesPage = () => {
     }
   };
 
-  const applyReadUpdate = (readerUserUuid: string, lastReadSeq: number) => {
+  const applyReadUpdate = (
+    readerUserUuid: string,
+    lastReadSeq: number,
+    previousLastReadSeq = 0,
+  ) => {
     setMessages((prev) => {
       if (!Number.isFinite(lastReadSeq) || lastReadSeq <= 0) {
         return prev;
       }
 
+      const safePreviousSeq = Number.isFinite(previousLastReadSeq) ? Math.max(previousLastReadSeq, 0) : 0;
+      if (lastReadSeq <= safePreviousSeq) {
+        return prev;
+      }
+
       return prev.map((msg) => {
-        if (msg.sender_uuid === readerUserUuid || msg.seq > lastReadSeq) {
+        if (
+          msg.sender_uuid === readerUserUuid
+          || msg.seq > lastReadSeq
+          || msg.seq <= safePreviousSeq
+        ) {
           return msg;
         }
 
@@ -1873,7 +1886,11 @@ const MessagesPage = () => {
             && typeof payload.user_uuid === 'string'
             && typeof payload.last_read_seq === 'number'
           ) {
-            applyReadUpdate(payload.user_uuid, payload.last_read_seq);
+            applyReadUpdate(
+              payload.user_uuid,
+              payload.last_read_seq,
+              typeof payload.previous_last_read_seq === 'number' ? payload.previous_last_read_seq : 0,
+            );
             void loadRooms();
             return;
           }
