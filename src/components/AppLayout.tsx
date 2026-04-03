@@ -431,6 +431,21 @@ const AppLayout = () => {
             return;
           }
 
+          if (payload.event === 'room_members_updated') {
+            const roomId = payload.room_id as string;
+            if (!roomId) {
+              return;
+            }
+
+            window.dispatchEvent(new CustomEvent('taskrit:new-chat-notification', {
+              detail: {
+                roomId,
+                messageId: `room-members-updated-${Date.now()}`,
+              },
+            }));
+            return;
+          }
+
           if (payload.event !== 'new_message') {
             return;
           }

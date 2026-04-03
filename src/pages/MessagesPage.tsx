@@ -1898,6 +1898,12 @@ const MessagesPage = () => {
             return;
           }
 
+          if (payload.type === 'room_members_updated' && payload.room_id === selectedConversation) {
+            void loadMessages(selectedConversation);
+            void loadRooms();
+            return;
+          }
+
           if (payload.type === 'message_deleted' && payload.data) {
             const deleted = payload.data as ChatMessage;
             if (deleted.room_id === selectedConversation) {
