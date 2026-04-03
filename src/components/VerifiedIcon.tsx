@@ -11,7 +11,7 @@ const VerifiedIcon = ({ tooltipPlacement = 'top' }: VerifiedIconProps) => {
 
   return (
     <span
-      className="relative inline-flex items-center align-middle group"
+      className="relative inline-flex items-center align-middle group/verified"
       tabIndex={0}
       aria-label={VERIFIED_TOOLTIP_TEXT}
     >
@@ -30,7 +30,7 @@ const VerifiedIcon = ({ tooltipPlacement = 'top' }: VerifiedIconProps) => {
       </svg>
       <span
         role="tooltip"
-        className={`pointer-events-none absolute left-1/2 ${tooltipPositionClass} -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 z-[120]`}
+        className={`pointer-events-none absolute left-1/2 ${tooltipPositionClass} -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text shadow-lg opacity-0 transition-opacity duration-150 group-hover/verified:opacity-100 group-focus/verified:opacity-100 z-[120]`}
       >
         {VERIFIED_TOOLTIP_TEXT}
       </span>
