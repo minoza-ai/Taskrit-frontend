@@ -622,6 +622,17 @@ export async function addRoomMembers(
   });
 }
 
+export async function updateRoomName(
+  token: string,
+  roomId: string,
+  room_name: string,
+): Promise<ChatRoom> {
+  return chatRequest(`/rooms/${roomId}/name`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ room_name }),
+  });
+}
+
 export async function createTeamRoom(
   token: string,
   members: string[],

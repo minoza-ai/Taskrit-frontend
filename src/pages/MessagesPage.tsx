@@ -17,6 +17,7 @@ import {
   toggleRoomMessageReaction,
   uploadRoomFile,
   reportUser,
+  updateRoomName,
   type ChatMessage,
   type ChatRoom,
   type ChatUser,
@@ -60,6 +61,9 @@ const MessagesPage = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRoomMembersPopupOpen, setIsRoomMembersPopupOpen] = useState(false);
+  const [roomNameDraft, setRoomNameDraft] = useState('');
+  const [isUpdatingRoomName, setIsUpdatingRoomName] = useState(false);
+  const [roomNameError, setRoomNameError] = useState<string | null>(null);
   
   // Group Chat Invite State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -2561,6 +2565,42 @@ const MessagesPage = () => {
     setIsRoomMembersPopupOpen(false);
   }, [selectedConversation]);
 
+  useEffect(() => {
+    if (!isRoomMembersPopupOpen || selectedRoom?.room_type !== 'team') {
+      return;
+    }
+
+    setRoomNameDraft(selectedRoom.room_name || '');
+    setRoomNameError(null);
+  }, [isRoomMembersPopupOpen, selectedRoom?.room_id, selectedRoom?.room_name, selectedRoom?.room_type]);
+
+  const handleUpdateRoomName = async () => {
+    if (!accessToken || !selectedRoom || selectedRoom.room_type !== 'team') {
+      return;
+    }
+
+    const nextRoomName = roomNameDraft.trim();
+    if (!nextRoomName) {
+      setRoomNameError('대화방 이름을 입력해주세요.');
+      return;
+    }
+
+    setIsUpdatingRoomName(true);
+    setRoomNameError(null);
+
+    try {
+      const updatedRoom = await updateRoomName(accessToken, selectedRoom.room_id, nextRoomName);
+      setRoomNameDraft(updatedRoom.room_name || nextRoomName);
+      await loadRooms();
+      setSelectedConversation(updatedRoom.room_id);
+      showToast('대화방 이름이 변경되었습니다.');
+    } catch (err: any) {
+      setRoomNameError(err.message || '대화방 이름 변경에 실패했습니다.');
+    } finally {
+      setIsUpdatingRoomName(false);
+    }
+  };
+
   const isRoomListSearching = normalizedRoomListSearchQuery.length > 0;
 
   const inviteModalBody = (
@@ -3051,7 +3091,7 @@ const MessagesPage = () => {
                     {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon tooltipPlacement="bottom" />}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                  {selectedRoom && (
+                  {selectedRoom?.room_type === 'team' && (
                     <button
                       type="button"
                       onClick={() => setIsRoomMembersPopupOpen(true)}
@@ -3220,7 +3260,7 @@ const MessagesPage = () => {
                 </div>
               </div>
 
-              {isRoomMembersPopupOpen && (
+              {isRoomMembersPopupOpen && selectedRoom?.room_type === 'team' && (
                 <div className="absolute inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="채팅방 참여자 목록">
                   <button
                     type="button"
@@ -3228,24 +3268,38 @@ const MessagesPage = () => {
                     onClick={() => setIsRoomMembersPopupOpen(false)}
                     aria-label="참여자 목록 닫기"
                   />
-                  <div className="relative w-full max-w-sm max-h-[75%] rounded-2xl border border-border bg-surface shadow-2xl flex flex-col overflow-hidden">
-                    <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                      <h3 className="text-sm font-semibold">대화 참여자</h3>
-                      <button
-                        type="button"
-                        onClick={() => setIsRoomMembersPopupOpen(false)}
-                        className="p-1 rounded-md hover:bg-surface-2 transition-colors"
-                        aria-label="참여자 목록 닫기"
-                      >
-                        <svg className="w-4 h-4 text-text-hint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                  <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
+                    <h3 className="text-base font-semibold mb-4">대화 참여자</h3>
+
+                    <div className="mb-4 shrink-0">
+                      <label className="block text-xs text-text-hint mb-2">대화방 이름</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={roomNameDraft}
+                          onChange={(e) => {
+                            setRoomNameDraft(e.target.value);
+                            if (roomNameError) setRoomNameError(null);
+                          }}
+                          className="glass-input flex-1 py-2 px-3 rounded-lg text-sm"
+                          placeholder="대화방 이름 입력"
+                          disabled={isUpdatingRoomName}
+                        />
+                        <button
+                          type="button"
+                          className="btn-primary px-3 py-2 rounded-md text-sm shrink-0 disabled:opacity-50"
+                          onClick={() => void handleUpdateRoomName()}
+                          disabled={isUpdatingRoomName}
+                        >
+                          {isUpdatingRoomName ? '변경 중...' : '변경'}
+                        </button>
+                      </div>
+                      {roomNameError && <div className="mt-2 text-xs text-red-400">{roomNameError}</div>}
                     </div>
 
-                    <div className="overflow-y-auto p-3 space-y-2">
+                    <div className="flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border">
                       {currentRoomMembers.map((member) => (
-                        <div key={`${member.user_uuid}-${member.user_id}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-1/70 px-3 py-2">
+                        <div key={`${member.user_uuid}-${member.user_id}`} className="flex items-center justify-between gap-3 w-full p-2 rounded-lg transition-colors hover:bg-surface-2">
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-sm font-semibold truncate">
@@ -3260,6 +3314,15 @@ const MessagesPage = () => {
                       {currentRoomMembers.length === 0 && (
                         <div className="text-center text-sm text-text-hint py-4">표시할 참여자 정보가 없습니다.</div>
                       )}
+                    </div>
+
+                    <div className="flex gap-2 justify-end shrink-0 pt-2">
+                      <button
+                        className="btn-secondary px-4 py-2 rounded-md text-sm"
+                        onClick={() => setIsRoomMembersPopupOpen(false)}
+                      >
+                        닫기
+                      </button>
                     </div>
                   </div>
                 </div>
