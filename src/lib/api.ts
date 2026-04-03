@@ -611,6 +611,17 @@ export async function createTeamFromRoom(
   });
 }
 
+export async function addRoomMembers(
+  token: string,
+  roomId: string,
+  new_members: string[],
+): Promise<ChatRoom> {
+  return chatRequest(`/rooms/${roomId}/members`, token, {
+    method: 'POST',
+    body: JSON.stringify({ new_members }),
+  });
+}
+
 export async function createTeamRoom(
   token: string,
   members: string[],
