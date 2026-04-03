@@ -46,7 +46,7 @@ const MessagesPage = () => {
   const [roomListSearchQuery, setRoomListSearchQuery] = useState('');
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setWsConnected] = useState(false);
   const [isComposingMessage, setIsComposingMessage] = useState(false);
@@ -3424,7 +3424,6 @@ const MessagesPage = () => {
                   onDrop={handleMessageAreaDrop}
                   className={`h-full p-3 md:p-4 overflow-y-auto flex flex-col ${messageStyle === 'irc' ? 'gap-0' : 'gap-3'}`}
                 >
-                  {loadingMessages && <div className="text-center py-8 text-text-hint text-sm">메시지 불러오는 중...</div>}
                   {searchQuery && filteredMessages.length === 0 && (
                     <div className="text-center py-8 text-text-hint text-sm">검색 결과가 없습니다</div>
                   )}
