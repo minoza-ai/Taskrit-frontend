@@ -78,14 +78,27 @@ type ChatNotification = {
   seen: boolean;
   senderProfileImage?: string;
   notificationType?: 'new_message' | 'incoming_call';
+  callerUserUuid?: string;
+  callerNickname?: string;
 };
+
+type PendingIncomingCall = {
+  roomId: string;
+  callerUserUuid: string;
+  callerNickname?: string;
+  roomName?: string;
+  createdAt?: number;
+};
+
+const PENDING_INCOMING_CALL_STORAGE_KEY = 'taskrit:pending-incoming-call';
+const PENDING_INCOMING_CALL_MAX_AGE_MS = 90 * 1000;
 
 const AppLayout = () => {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
   const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
@@ -95,6 +108,7 @@ const AppLayout = () => {
   const [isProfileImageError, setIsProfileImageError] = useState(false);
   const [taskTokenBalance, setTaskTokenBalance] = useState<number | null>(null);
   const [taskTokenImage, setTaskTokenImage] = useState<string | null>(null);
+  const [pendingIncomingCall, setPendingIncomingCall] = useState<PendingIncomingCall | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
   const profileButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -114,6 +128,27 @@ const AppLayout = () => {
     : null;
   const profileInitial = (user?.nickname?.[0] || user?.user_id?.[0] || 'U').toUpperCase();
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
+
+  const readPendingIncomingCall = (): PendingIncomingCall | null => {
+    try {
+      const rawPending = sessionStorage.getItem(PENDING_INCOMING_CALL_STORAGE_KEY);
+      if (!rawPending) return null;
+
+      const parsed = JSON.parse(rawPending) as PendingIncomingCall;
+      if (!parsed.roomId || !parsed.callerUserUuid) {
+        return null;
+      }
+
+      if (parsed.createdAt && (Date.now() - parsed.createdAt) > PENDING_INCOMING_CALL_MAX_AGE_MS) {
+        sessionStorage.removeItem(PENDING_INCOMING_CALL_STORAGE_KEY);
+        return null;
+      }
+
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
 
   useEffect(() => {
     setIsProfileImageError(false);
@@ -246,10 +281,12 @@ const AppLayout = () => {
   useEffect(() => {
     const onStartCallRingtone = () => {
       startCallRingtone();
+      setPendingIncomingCall(readPendingIncomingCall());
     };
 
     const onStopCallRingtone = () => {
       stopCallRingtone();
+      setPendingIncomingCall(readPendingIncomingCall());
     };
 
     window.addEventListener('taskrit:start-call-ringtone', onStartCallRingtone as EventListener);
@@ -264,6 +301,7 @@ const AppLayout = () => {
   useEffect(() => {
     if (!accessToken) {
       stopCallRingtone();
+      setPendingIncomingCall(null);
 
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
@@ -350,6 +388,26 @@ const AppLayout = () => {
               },
             }));
 
+            try {
+              sessionStorage.setItem(PENDING_INCOMING_CALL_STORAGE_KEY, JSON.stringify({
+                roomId,
+                callerUserUuid,
+                callerNickname,
+                roomName: (payload.room_name as string) || '채팅방',
+                createdAt: Date.now(),
+              }));
+            } catch {
+              // Ignore storage failures (e.g., private mode restrictions)
+            }
+
+            setPendingIncomingCall({
+              roomId,
+              callerUserUuid,
+              callerNickname,
+              roomName: (payload.room_name as string) || '채팅방',
+              createdAt: Date.now(),
+            });
+
             startCallRingtone();
 
             const callNotification: ChatNotification = {
@@ -361,6 +419,8 @@ const AppLayout = () => {
               seen: false,
               senderProfileImage: payload.caller?.profile_image_url as string | undefined,
               notificationType: 'incoming_call',
+              callerUserUuid,
+              callerNickname,
             };
 
             setNotifications((prev) => [
@@ -457,7 +517,11 @@ const AppLayout = () => {
       }
       reconnectAttemptRef.current = 0;
     };
-  }, [accessToken, location.pathname, user?.user_uuid]);
+  }, [accessToken, user?.user_uuid]);
+
+  useEffect(() => {
+    setPendingIncomingCall(readPendingIncomingCall());
+  }, []);
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
@@ -484,16 +548,44 @@ const AppLayout = () => {
     setIsNotificationOpen((prev) => {
       const next = !prev;
       if (next) {
-        stopCallRingtone();
+        if (!readPendingIncomingCall()) {
+          stopCallRingtone();
+        }
         setNotifications((items) => items.map((item) => ({ ...item, seen: true })));
       }
       return next;
     });
   };
 
+  const moveToIncomingCallRoom = (incomingCall: PendingIncomingCall) => {
+    const params = new URLSearchParams({
+      room: incomingCall.roomId,
+      incomingCall: '1',
+      callerUserUuid: incomingCall.callerUserUuid,
+    });
+
+    if (incomingCall.callerNickname) {
+      params.set('callerNickname', incomingCall.callerNickname);
+    }
+
+    navigate(`/messages?${params.toString()}`);
+  };
+
   const moveToNotifiedRoom = (notification: ChatNotification) => {
-    stopCallRingtone();
     setIsNotificationOpen(false);
+
+    if (notification.notificationType === 'incoming_call' && notification.callerUserUuid) {
+      moveToIncomingCallRoom({
+        roomId: notification.roomId,
+        callerUserUuid: notification.callerUserUuid,
+        callerNickname: notification.callerNickname,
+      });
+      return;
+    }
+
+    if (!readPendingIncomingCall()) {
+      stopCallRingtone();
+    }
     navigate(`/messages?room=${encodeURIComponent(notification.roomId)}`);
   };
 
@@ -697,6 +789,37 @@ const AppLayout = () => {
           </div>
         </div>
       </header>
+
+      {pendingIncomingCall && location.pathname !== '/messages' && (
+        <div className="fixed z-50 left-4 right-4 md:left-auto md:right-5 top-[4.25rem] md:top-[4.75rem] md:w-[22rem]">
+          <div className="rounded-2xl border border-emerald-500/30 bg-surface/95 backdrop-blur-xl shadow-2xl p-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0 animate-pulse">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5.25C3 4.56 3.56 4 4.25 4h2.12a1.5 1.5 0 011.47 1.21l.6 2.86a1.5 1.5 0 01-.4 1.35l-1.03 1.03a14 14 0 006.03 6.03l1.03-1.03a1.5 1.5 0 011.35-.4l2.86.6A1.5 1.5 0 0120 17.13v2.12c0 .69-.56 1.25-1.25 1.25h-.5C10.94 20.5 3.5 13.06 3.5 3.75v-.5z" />
+                </svg>
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-emerald-500">수신 전화</div>
+                <div className="text-sm text-text mt-0.5 truncate">
+                  {(pendingIncomingCall.callerNickname || '상대방')}님이 전화를 걸고 있습니다.
+                </div>
+                <div className="text-[11px] text-text-hint mt-1 truncate">
+                  {pendingIncomingCall.roomName || '채팅방'}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => moveToIncomingCallRoom(pendingIncomingCall)}
+              className="mt-3 w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2 transition-colors"
+            >
+              통화 화면으로 이동
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <main className="flex-1 pt-14 md:pt-16 pb-20 md:pb-8">

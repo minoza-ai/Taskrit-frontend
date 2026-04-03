@@ -19,6 +19,7 @@ import {
   type ChatUser,
 } from '../lib/api';
 import VerifiedIcon from '../components/VerifiedIcon';
+const PENDING_INCOMING_CALL_STORAGE_KEY = 'taskrit:pending-incoming-call';
 
 const MessagesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -244,6 +245,40 @@ const MessagesPage = () => {
   const stopIncomingCallRingtone = () => {
     window.dispatchEvent(new CustomEvent('taskrit:stop-call-ringtone'));
   };
+  
+  const clearPendingIncomingCall = () => {
+    try {
+      sessionStorage.removeItem(PENDING_INCOMING_CALL_STORAGE_KEY);
+    } catch {
+      // Ignore storage failures
+    }
+  };
+  
+  const readPendingIncomingCall = () => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_INCOMING_CALL_STORAGE_KEY);
+      if (!raw) return null;
+  
+      const parsed = JSON.parse(raw) as {
+        roomId?: string;
+        callerUserUuid?: string;
+        callerNickname?: string;
+        createdAt?: number;
+      };
+  
+      if (!parsed.roomId || !parsed.callerUserUuid) {
+        return null;
+      }
+  
+      return {
+        roomId: parsed.roomId,
+        callerUserUuid: parsed.callerUserUuid,
+        callerNickname: parsed.callerNickname,
+      };
+    } catch {
+      return null;
+    }
+  };
 
   const stopLocalAudioTracks = () => {
     if (!localAudioStreamRef.current) {
@@ -403,6 +438,7 @@ const MessagesPage = () => {
     setIsMicMuted(false);
     setIsHeadsetMuted(false);
     setIncomingCallState(null);
+  clearPendingIncomingCall();
 
     if (callElapsedTimerRef.current) {
       window.clearInterval(callElapsedTimerRef.current);
@@ -556,6 +592,15 @@ const MessagesPage = () => {
           roomId: typeof payload.room_id === 'string' ? payload.room_id : selectedConversation || '',
           callerUserUuid: payload.sender_uuid,
         });
+        try {
+          sessionStorage.setItem(PENDING_INCOMING_CALL_STORAGE_KEY, JSON.stringify({
+            roomId: typeof payload.room_id === 'string' ? payload.room_id : selectedConversation || '',
+            callerUserUuid: payload.sender_uuid,
+            createdAt: Date.now(),
+          }));
+        } catch {
+          // Ignore storage failures
+        }
         setCallStatusText('수신 중...');
         startIncomingCallRingtone();
         showToast('음성 통화 요청이 도착했습니다.');
@@ -606,6 +651,7 @@ const MessagesPage = () => {
         setIsCallConnecting(true);
         setCallStatusText('통화 연결 중...');
         setIncomingCallState(null);
+        clearPendingIncomingCall();
         stopIncomingCallRingtone();
 
         const stream = await ensureLocalAudioStream();
@@ -754,6 +800,7 @@ const MessagesPage = () => {
     stopIncomingCallRingtone();
     setCallPeerUserUuid(incomingCallState.callerUserUuid);
     setIncomingCallState(null);
+    clearPendingIncomingCall();
     setIsCallConnecting(true);
     setCallStatusText('통화 연결 중...');
 
@@ -991,6 +1038,12 @@ const MessagesPage = () => {
 
   useEffect(() => {
     return () => {
+      const hasOngoingOrIncomingCall = Boolean(
+        incomingCallStateRef.current
+        || isCallConnectingRef.current
+        || isInCallRef.current
+      );
+
       if (longPressTimerRef.current) {
         window.clearTimeout(longPressTimerRef.current);
       }
@@ -1007,7 +1060,9 @@ const MessagesPage = () => {
         window.clearInterval(callElapsedTimerRef.current);
         callElapsedTimerRef.current = null;
       }
-      stopIncomingCallRingtone();
+      if (!hasOngoingOrIncomingCall) {
+        stopIncomingCallRingtone();
+      }
       stopCallSpeakerMonitor();
     };
   }, []);
@@ -1573,20 +1628,72 @@ const MessagesPage = () => {
       window.removeEventListener('taskrit:incoming-call-notification', handleIncomingCallNotification as EventListener);
     };
   }, [incomingCallState, isCallConnecting, isInCall, user?.user_uuid]);
+  
+  useEffect(() => {
+    if (!user?.user_uuid || isInCall || isCallConnecting || incomingCallState) {
+      return;
+    }
+  
+    const pendingIncomingCall = readPendingIncomingCall();
+    if (!pendingIncomingCall) {
+      return;
+    }
+  
+    if (pendingIncomingCall.callerUserUuid === user.user_uuid) {
+      clearPendingIncomingCall();
+      return;
+    }
+  
+    setSelectedConversation(pendingIncomingCall.roomId);
+    setMobileView('chat');
+    setCallPeerUserUuid(pendingIncomingCall.callerUserUuid);
+    setIncomingCallState({
+      roomId: pendingIncomingCall.roomId,
+      callerUserUuid: pendingIncomingCall.callerUserUuid,
+      callerNickname: pendingIncomingCall.callerNickname,
+    });
+    setCallStatusText('수신 중...');
+    startIncomingCallRingtone();
+  }, [incomingCallState, isCallConnecting, isInCall, user?.user_uuid]);
+  clearPendingIncomingCall();
 
   useEffect(() => {
     const targetRoomId = searchParams.get('room');
+    const incomingCallFlag = searchParams.get('incomingCall');
+    const callerUserUuid = searchParams.get('callerUserUuid');
+    const callerNickname = searchParams.get('callerNickname') || undefined;
     if (!targetRoomId) return;
 
     setSelectedConversation(targetRoomId);
     setMobileView('chat');
 
+    if (
+      incomingCallFlag === '1'
+      && callerUserUuid
+      && callerUserUuid !== user?.user_uuid
+      && !isInCall
+      && !isCallConnecting
+      && !incomingCallState
+    ) {
+      setCallPeerUserUuid(callerUserUuid);
+      setIncomingCallState({
+        roomId: targetRoomId,
+        callerUserUuid,
+        callerNickname,
+      });
+      setCallStatusText('수신 중...');
+      startIncomingCallRingtone();
+    }
+
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete('room');
+      next.delete('incomingCall');
+      next.delete('callerUserUuid');
+      next.delete('callerNickname');
       return next;
     }, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [incomingCallState, isCallConnecting, isInCall, searchParams, setSearchParams, user?.user_uuid]);
 
   useEffect(() => {
     if (selectedConversation) {
