@@ -320,25 +320,30 @@ const AppLayout = () => {
     let disposed = false;
 
     const resolvedWsBase = () => {
-      if (import.meta.env.VITE_CHAT_WS_BASE) {
-        return import.meta.env.VITE_CHAT_WS_BASE as string;
-      }
-
-      if (import.meta.env.VITE_CHAT_WS_TARGET) {
-        return `${import.meta.env.VITE_CHAT_WS_TARGET as string}/ws`;
-      }
-
       const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const envWsBase = (import.meta.env.VITE_CHAT_WS_BASE as string | undefined)?.trim();
+      const envWsTarget = (import.meta.env.VITE_CHAT_WS_TARGET as string | undefined)?.trim();
+
+      // taskr.it 배포에서는 기본값(/chat-ws)일 때 채팅 서브도메인으로 직접 연결해
+      // 루트 도메인 프록시의 WS 업그레이드 불안정 구간을 우회한다.
+      if (
+        (window.location.hostname === 'taskr.it' || window.location.hostname === 'www.taskr.it')
+        && (!envWsBase || envWsBase === '/chat-ws')
+      ) {
+        return `${wsProtocol}://chat.taskr.it/ws`;
+      }
+
+      if (envWsBase) {
+        return envWsBase;
+      }
+
+      if (envWsTarget) {
+        return `${envWsTarget}/ws`;
+      }
 
       if (isLocalhost) {
         return 'ws://localhost:3001/ws';
-      }
-
-      // In production, connect directly to chat subdomain websocket to avoid
-      // root-domain proxy websocket upgrade mismatches.
-      if (window.location.hostname === 'taskr.it' || window.location.hostname === 'www.taskr.it') {
-        return `${wsProtocol}://chat.taskr.it/ws`;
       }
 
       return `${wsProtocol}://${window.location.host}/chat-ws`;
