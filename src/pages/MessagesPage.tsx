@@ -15,6 +15,7 @@ import {
   createTeamFromRoom,
   toggleRoomMessageReaction,
   uploadRoomFile,
+  reportUser,
   type ChatMessage,
   type ChatRoom,
   type ChatUser,
@@ -37,6 +38,7 @@ const MessagesPage = () => {
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [selectedProfileUser, setSelectedProfileUser] = useState<ChatUser | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [roomListSearchQuery, setRoomListSearchQuery] = useState('');
   const [creatingRoom, setCreatingRoom] = useState(false);
@@ -62,6 +64,12 @@ const MessagesPage = () => {
   const [inviteSelectedUsers, setInviteSelectedUsers] = useState<ChatUser[]>([]);
   const [inviteRoomName, setInviteRoomName] = useState('');
   const [isInviting, setIsInviting] = useState(false);
+
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [isReporting, setIsReporting] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [selectedReportUser, setSelectedReportUser] = useState<ChatUser | null>(null);
 
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
@@ -2409,6 +2417,7 @@ const MessagesPage = () => {
       <button
         key={conv.room_id}
         onClick={() => {
+          setSelectedProfileUser(null);
           setSelectedConversation(conv.room_id);
           setMobileView('chat');
         }}
@@ -2474,7 +2483,13 @@ const MessagesPage = () => {
     return (
       <button
         key={chatUser.user_uuid}
-        onClick={() => { void handleOpenOrCreateDmByUser(chatUser); }}
+        onClick={() => {
+          setSelectedConversation(null);
+          setSelectedProfileUser(chatUser);
+          if (!isDesktopViewport) {
+            setMobileView('chat');
+          }
+        }}
         className="w-full text-left p-3 rounded-lg transition-all cursor-pointer hover:bg-surface-2/50"
       >
         <div className="flex items-center gap-3">
@@ -2594,7 +2609,167 @@ const MessagesPage = () => {
               </div>
             </div>
           )}
-          {selectedConversation ? (
+          {selectedProfileUser ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface-1/50 overflow-y-auto relative">
+              {/* Mobile Back Button */}
+              {!isDesktopViewport && (
+                <button
+                  onClick={() => {
+                    setMobileView('list');
+                    setSelectedProfileUser(null);
+                  }}
+                  className="absolute top-4 left-4 btn-ghost px-2 py-1 rounded-md flex items-center gap-1 text-text-sub"
+                  aria-label="채팅방 목록으로 돌아가기"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  목록
+                </button>
+              )}
+              
+              <div className="glass-panel max-w-md w-full rounded-2xl p-8 flex flex-col items-center shadow-lg">
+                <div className="w-32 h-32 rounded-full overflow-hidden bg-surface-3 flex-shrink-0 flex items-center justify-center text-4xl text-text-sub font-bold mb-6 ring-4 ring-primary/20 shadow-inner">
+                  {selectedProfileUser.profile_image_url ? (
+                    <img 
+                      src={selectedProfileUser.profile_image_url.startsWith('http') ? selectedProfileUser.profile_image_url : `/api${selectedProfileUser.profile_image_url}`} 
+                      alt={selectedProfileUser.nickname} 
+                      className="w-full h-full object-cover" 
+                    />
+                  ) : (
+                    selectedProfileUser.nickname?.[0] || '?'
+                  )}
+                </div>
+                
+                <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
+                  {selectedProfileUser.nickname}
+                  {/* {selectedProfileUser.is_kyc_verified && <VerifiedIcon />} */}
+                </h2>
+                
+                <p className="text-text-sub mb-8 font-medium">@{selectedProfileUser.user_id}</p>
+
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                  <button
+                    className="btn-primary w-full py-3 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setSelectedProfileUser(null);
+                      void handleOpenOrCreateDmByUser(selectedProfileUser);
+                    }}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                    채팅하기
+                  </button>
+                  <button
+                    className="glass-panel w-full py-3 rounded-xl font-bold text-white tracking-wide transition-colors flex items-center justify-center gap-2 hover:bg-surface-2"
+                    onClick={() => {
+                      setSelectedProfileUser(null);
+                      void handleOpenOrCreateDmByUser(selectedProfileUser).then(() => {
+                        setTimeout(() => handleStartVoiceCall(), 500);
+                      });
+                    }}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    음성통화하기
+                  </button>
+                  <button
+                    className="glass-panel w-full py-3 rounded-xl font-bold text-red-500 hover:bg-red-500/10 hover:border-red-500/30 transition-all border border-transparent flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setSelectedReportUser(selectedProfileUser);
+                      setIsReportModalOpen(true);
+                      setReportReason('');
+                      setReportError(null);
+                    }}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    신고하기
+                  </button>
+                </div>
+              </div>
+
+              {isReportModalOpen && selectedReportUser && (
+                <div className="absolute inset-0 z-50 backdrop-blur-2xl animate-fade-in flex items-center justify-center p-4 rounded-2xl">
+                  <div className="animate-modal-in rounded-2xl p-8 max-w-md w-full shadow-2xl border border-border bg-surface opacity-100">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-3 flex items-center justify-center text-lg font-bold text-text-sub">
+                        {selectedReportUser.profile_image_url ? (
+                          <img 
+                            src={selectedReportUser.profile_image_url.startsWith('http') ? selectedReportUser.profile_image_url : `/api${selectedReportUser.profile_image_url}`} 
+                            alt={selectedReportUser.nickname} 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          selectedReportUser.nickname?.[0] || '?'
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">{selectedReportUser.nickname}</h3>
+                        <p className="text-text-sub text-sm">@{selectedReportUser.user_id}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-bold text-white mb-3">신고 사유 (선택사항)</label>
+                      <textarea
+                        value={reportReason}
+                        onChange={(e) => {
+                          setReportReason(e.target.value);
+                          setReportError(null);
+                        }}
+                        placeholder="문제가 되는 행동이나 이유를 설명해주세요..."
+                        className="w-full bg-surface-2 border border-border p-3 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        rows={4}
+                      />
+                    </div>
+
+                    {reportError && (
+                      <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <p className="text-red-500 text-sm">{reportError}</p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        className="btn-secondary px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                        onClick={() => {
+                          setIsReportModalOpen(false);
+                          setReportReason('');
+                          setReportError(null);
+                          setSelectedReportUser(null);
+                        }}
+                        disabled={isReporting}
+                      >
+                        취소
+                      </button>
+                      <button
+                        className="btn-danger px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => {
+                          if (!selectedReportUser) return;
+                          setIsReporting(true);
+                          reportUser(accessToken!, selectedReportUser.user_uuid, reportReason || 'Inappropriate behavior')
+                            .then(() => {
+                              showToast('신고가 접수되었습니다.');
+                              setIsReportModalOpen(false);
+                              setReportReason('');
+                              setReportError(null);
+                              setSelectedReportUser(null);
+                            })
+                            .catch((e) => {
+                              setReportError(e.message || '신고 제출에 실패했습니다.');
+                            })
+                            .finally(() => {
+                              setIsReporting(false);
+                            });
+                        }}
+                        disabled={isReporting}
+                      >
+                        {isReporting ? '신고 중...' : '신고하기'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : selectedConversation ? (
             <>
               {/* Header */}
               <div className="p-3 md:p-4 border-b border-border relative z-10">
