@@ -2398,6 +2398,9 @@ const MessagesPage = () => {
   const handleCreateTeamGroupRoom = async () => {
     if (!accessToken) return;
 
+    const isDmToTeamUpgrade = inviteModalMode === 'invite-into-room' && selectedRoom?.room_type === 'dm';
+    const trimmedInviteRoomName = inviteRoomName.trim();
+
     if (inviteModalMode === 'create-team-room' && inviteSelectedUsers.length < 2) {
       showToast('단체 채팅방은 2명 이상 선택해야 생성할 수 있습니다.');
       return;
@@ -2405,6 +2408,11 @@ const MessagesPage = () => {
 
     if (inviteModalMode === 'invite-into-room' && inviteSelectedUsers.length === 0) {
       showToast('초대할 사용자를 1명 이상 선택해주세요.');
+      return;
+    }
+
+    if (isDmToTeamUpgrade && !trimmedInviteRoomName) {
+      showToast('단체방 제목을 입력해주세요.');
       return;
     }
 
@@ -2418,6 +2426,9 @@ const MessagesPage = () => {
 
         const uids = inviteSelectedUsers.map((u) => u.user_uuid);
         const updatedRoom = await addRoomMembers(accessToken, selectedConversation, uids);
+        const finalRoom = isDmToTeamUpgrade
+          ? await updateRoomName(accessToken, updatedRoom.room_id, trimmedInviteRoomName)
+          : updatedRoom;
         const invitedNames = inviteSelectedUsers.map((u) => u.nickname).join(', ');
         await sendRoomMessage(accessToken, selectedConversation, `${user?.nickname}님이 ${invitedNames}님을 대화방에 초대했습니다.`);
 
@@ -2427,9 +2438,12 @@ const MessagesPage = () => {
         setInviteSearchQuery('');
 
         await loadRooms();
-        setSelectedConversation(updatedRoom.room_id);
+        if (isDmToTeamUpgrade) {
+          setRoomListSearchQuery('');
+        }
+        setSelectedConversation(finalRoom.room_id);
         setMobileView('chat');
-        await loadMessages(updatedRoom.room_id);
+        await loadMessages(finalRoom.room_id);
         showToast('사용자를 대화방에 초대했습니다.');
         return;
       }
@@ -2447,6 +2461,7 @@ const MessagesPage = () => {
       setInviteSelectedUsers([]);
       setInviteRoomName('');
       setInviteSearchQuery('');
+      setRoomListSearchQuery('');
       
       await loadRooms();
       setSelectedConversation(newRoom.room_id);
@@ -2486,6 +2501,7 @@ const MessagesPage = () => {
 
     try {
       const room = await createDmRoom(accessToken, targetUser.user_uuid, `${targetUser.nickname}님과의 대화`);
+      setRoomListSearchQuery('');
       await loadRooms();
       setSelectedConversation(room.room_id);
       setMobileView('chat');
@@ -2617,16 +2633,21 @@ const MessagesPage = () => {
   };
 
   const isRoomListSearching = normalizedRoomListSearchQuery.length > 0;
+  const isInvitingFromDmRoom = inviteModalMode === 'invite-into-room' && selectedRoom?.room_type === 'dm';
+  const shouldShowInviteRoomNameInput = inviteModalMode === 'create-team-room' || isInvitingFromDmRoom;
+  const isInviteSubmitDisabled = isInviting
+    || (inviteModalMode === 'create-team-room' ? inviteSelectedUsers.length < 2 : inviteSelectedUsers.length === 0)
+    || (isInvitingFromDmRoom && inviteRoomName.trim().length === 0);
 
   const inviteModalBody = (
     <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
       <h3 className="text-base font-semibold mb-4">{inviteModalMode === 'create-team-room' ? '단체 채팅방 만들기' : '현재 대화방 사용자 초대'}</h3>
 
       <div className="mb-4 shrink-0">
-        {inviteModalMode === 'create-team-room' && (
+        {shouldShowInviteRoomNameInput && (
           <input
             type="text"
-            placeholder="채팅방 이름 입력"
+            placeholder={isInvitingFromDmRoom ? '단체방 제목 입력' : '채팅방 이름 입력'}
             className="w-full glass-input py-2 px-3 rounded-lg text-sm mb-3"
             value={inviteRoomName}
             onChange={(e) => setInviteRoomName(e.target.value)}
@@ -2708,7 +2729,7 @@ const MessagesPage = () => {
         <button
           className="btn-primary px-4 py-2 rounded-md text-sm"
           onClick={() => void handleCreateTeamGroupRoom()}
-          disabled={isInviting || (inviteModalMode === 'create-team-room' ? inviteSelectedUsers.length < 2 : inviteSelectedUsers.length === 0)}
+          disabled={isInviteSubmitDisabled}
         >
           {isInviting ? '처리 중...' : inviteModalMode === 'create-team-room' ? '단체방 만들기' : `${inviteSelectedUsers.length}명 초대`}
         </button>
