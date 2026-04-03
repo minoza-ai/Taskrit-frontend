@@ -2270,20 +2270,23 @@ const MessagesPage = () => {
       showToast('초대할 사용자를 1명 이상 선택해주세요.');
       return;
     }
-    if (!inviteRoomName.trim()) {
-      showToast('채팅방 이름을 입력해주세요.');
-      return;
-    }
 
     setIsInviting(true);
     try {
       const uids = inviteSelectedUsers.map((u) => u.user_uuid);
+      const defaultRoomName = inviteRoomName.trim() || `${user?.nickname || '나'}, ${inviteSelectedUsers.map(u => u.nickname).join(', ')}의 단체방`;
+      
       const newRoom = await createTeamFromRoom(
         accessToken,
         selectedConversation,
         uids,
-        inviteRoomName.trim()
+        defaultRoomName
       );
+      
+      // Send an initial system message to trigger websocket notification for all members
+      const invitedNames = inviteSelectedUsers.map(u => u.nickname).join(', ');
+      await sendRoomMessage(accessToken, newRoom.room_id, `${user?.nickname}님이 ${invitedNames}님을 초대하여 단체 채팅방을 개설했습니다.`);
+
       setIsInviteModalOpen(false);
       setInviteSelectedUsers([]);
       setInviteRoomName('');
@@ -3448,7 +3451,7 @@ const MessagesPage = () => {
               <button 
                 className="btn-primary px-4 py-2 rounded-md text-sm"
                 onClick={() => void handleCreateTeamGroupRoom()}
-                disabled={isInviting || inviteSelectedUsers.length === 0 || !inviteRoomName.trim()}
+                disabled={isInviting || inviteSelectedUsers.length === 0}
               >
                 {isInviting ? '생성 중...' : `${inviteSelectedUsers.length}명 초대`}
               </button>
