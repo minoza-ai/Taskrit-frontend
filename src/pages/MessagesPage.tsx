@@ -2652,16 +2652,24 @@ const MessagesPage = () => {
                   }
                 }}
               >
-                <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-active border-active' : 'border-border'}`}>
-                  {isSelected && <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-border bg-transparent'}`}>
+                  {isSelected && (
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
                 </div>
                 <div className="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center shrink-0">
                   {u.profile_image_url ? (
                     <img src={u.profile_image_url.startsWith('http') ? u.profile_image_url : `/api${u.profile_image_url}`} alt="profile" className="w-full h-full rounded-full object-cover" />
                   ) : u.nickname[0]}
                 </div>
-                <div className="flex-1 text-left truncate text-sm">
-                  {u.nickname}
+                <div className="flex-1 text-left min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="truncate text-sm font-medium">{u.nickname}</span>
+                    {u.wallet_address && <VerifiedIcon tooltipPlacement="bottom" />}
+                  </div>
+                  <div className="truncate text-[11px] text-text-hint">@{u.user_id}</div>
                 </div>
               </button>
             );
