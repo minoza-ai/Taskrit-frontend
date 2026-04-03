@@ -2566,7 +2566,7 @@ const MessagesPage = () => {
                   // Ignore silent errors
                 }
               }}
-              placeholder="닉네임 또는 @아이디로 검색"
+              placeholder="닉네임 또는 아이디로 검색"
               className="glass-input w-full min-w-0 py-2.5 px-4 rounded-md text-sm"
             />
             {creatingRoom && (
