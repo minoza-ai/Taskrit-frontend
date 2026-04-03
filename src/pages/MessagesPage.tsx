@@ -12,6 +12,7 @@ import {
   listRoomMessages,
   markRoomAsRead,
   sendRoomMessage,
+  createTeamFromRoom,
   toggleRoomMessageReaction,
   uploadRoomFile,
   type ChatMessage,
@@ -54,6 +55,14 @@ const MessagesPage = () => {
   const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Group Chat Invite State
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('');
+  const [inviteSelectedUsers, setInviteSelectedUsers] = useState<ChatUser[]>([]);
+  const [inviteRoomName, setInviteRoomName] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
   const [callPeerUserUuid, setCallPeerUserUuid] = useState<string | null>(null);
@@ -1038,12 +1047,6 @@ const MessagesPage = () => {
 
   useEffect(() => {
     return () => {
-      const hasOngoingOrIncomingCall = Boolean(
-        incomingCallStateRef.current
-        || isCallConnectingRef.current
-        || isInCallRef.current
-      );
-
       if (longPressTimerRef.current) {
         window.clearTimeout(longPressTimerRef.current);
       }
@@ -2260,6 +2263,50 @@ const MessagesPage = () => {
     void handleSend();
   };
 
+  const handleCreateTeamGroupRoom = async () => {
+    if (!accessToken || !selectedConversation) return;
+
+    if (inviteSelectedUsers.length === 0) {
+      showToast('초대할 사용자를 1명 이상 선택해주세요.');
+      return;
+    }
+    if (!inviteRoomName.trim()) {
+      showToast('채팅방 이름을 입력해주세요.');
+      return;
+    }
+
+    setIsInviting(true);
+    try {
+      const uids = inviteSelectedUsers.map((u) => u.user_uuid);
+      const newRoom = await createTeamFromRoom(
+        accessToken,
+        selectedConversation,
+        uids,
+        inviteRoomName.trim()
+      );
+      setIsInviteModalOpen(false);
+      setInviteSelectedUsers([]);
+      setInviteRoomName('');
+      setInviteSearchQuery('');
+      
+      await loadRooms();
+      setSelectedConversation(newRoom.room_id);
+      setMobileView('chat');
+      await loadMessages(newRoom.room_id);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (!refreshed) {
+          logout();
+          return;
+        }
+      }
+      showToast(err.message || '단체 채팅방 생성에 실패했습니다.');
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   const handleOpenOrCreateDmByUser = async (targetUser: ChatUser) => {
     if (!accessToken) return;
 
@@ -2558,6 +2605,23 @@ const MessagesPage = () => {
                     {selectedRoom && getOtherUser(selectedRoom)?.wallet_address && <VerifiedIcon />}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
+                  {selectedRoom && (
+                    <button
+                      onClick={() => {
+                        setInviteSearchQuery('');
+                        setInviteSelectedUsers([]);
+                        setInviteRoomName('');
+                        setIsInviteModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors"
+                      aria-label="단체 채팅방 초대"
+                      title="단체 채팅방 초대"
+                    >
+                      <svg className="w-5 h-5 text-text-hint hover:text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setSearchOpen(!searchOpen);
@@ -3284,6 +3348,84 @@ const MessagesPage = () => {
             onClick={(e) => e.stopPropagation()}
             loading="lazy"
           />
+        </div>
+      )}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="단체 채팅방 초대">
+          <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
+            <h3 className="text-base font-semibold mb-4">단체 채팅방 만들기</h3>
+            
+            <div className="mb-4 shrink-0">
+              <input 
+                type="text"
+                placeholder="채팅방 이름 입력"
+                className="w-full glass-input py-2 px-3 rounded-lg text-sm mb-3"
+                value={inviteRoomName}
+                onChange={(e) => setInviteRoomName(e.target.value)}
+              />
+              <input 
+                type="text"
+                placeholder="사용자 검색"
+                className="w-full glass-input py-2 px-3 rounded-lg text-sm"
+                value={inviteSearchQuery}
+                onChange={(e) => setInviteSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border">
+              {chatUsers
+                .filter(u => u.user_uuid !== user?.user_uuid)
+                .filter(u => {
+                  if (!inviteSearchQuery.trim()) return true;
+                  return u.nickname.toLowerCase().includes(inviteSearchQuery.toLowerCase());
+                })
+                .map(u => {
+                  const isSelected = inviteSelectedUsers.some(selected => selected.user_uuid === u.user_uuid);
+                  return (
+                    <button
+                      key={u.user_uuid}
+                      className={`flex items-center gap-3 w-full p-2 rounded-lg transition-colors ${isSelected ? 'bg-active/20' : 'hover:bg-surface-2'}`}
+                      onClick={() => {
+                        if (isSelected) {
+                          setInviteSelectedUsers(prev => prev.filter(p => p.user_uuid !== u.user_uuid));
+                        } else {
+                          setInviteSelectedUsers(prev => [...prev, u]);
+                        }
+                      }}
+                    >
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-active border-active' : 'border-border'}`}>
+                        {isSelected && <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center shrink-0">
+                        {u.profile_image_url ? (
+                          <img src={u.profile_image_url.startsWith('http') ? u.profile_image_url : `/api${u.profile_image_url}`} alt="profile" className="w-full h-full rounded-full object-cover" />
+                        ) : u.nickname[0]}
+                      </div>
+                      <div className="flex-1 text-left truncate text-sm">
+                        {u.nickname}
+                      </div>
+                    </button>
+                  );
+              })}
+              {chatUsers.length === 0 && <div className="text-center text-sm text-text-hint py-4">사용자가 없습니다</div>}
+            </div>
+            
+            <div className="flex gap-2 justify-end shrink-0 pt-2">
+              <button 
+                className="btn-secondary px-4 py-2 rounded-md text-sm"
+                onClick={() => setIsInviteModalOpen(false)}
+              >
+                취소
+              </button>
+              <button 
+                className="btn-primary px-4 py-2 rounded-md text-sm"
+                onClick={() => void handleCreateTeamGroupRoom()}
+                disabled={isInviting || inviteSelectedUsers.length === 0 || !inviteRoomName.trim()}
+              >
+                {isInviting ? '생성 중...' : `${inviteSelectedUsers.length}명 초대`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

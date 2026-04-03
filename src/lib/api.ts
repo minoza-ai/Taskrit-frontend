@@ -599,6 +599,18 @@ export async function createDmRoom(
   });
 }
 
+export async function createTeamFromRoom(
+  token: string,
+  roomId: string,
+  new_members: string[],
+  room_name: string,
+): Promise<ChatRoom> {
+  return chatRequest(`/rooms/${roomId}/team`, token, {
+    method: 'POST',
+    body: JSON.stringify({ new_members, room_name }),
+  });
+}
+
 export async function listRoomMessages(
   token: string,
   roomId: string,
