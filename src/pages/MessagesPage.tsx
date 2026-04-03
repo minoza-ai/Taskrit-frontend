@@ -1487,7 +1487,7 @@ const MessagesPage = () => {
     }
 
     if (msg.message_type === 'file') {
-      const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:8001'}/files/${msg.saved_filename}`;
+      const fileUrl = `${import.meta.env.VITE_CHAT_API_BASE || '/chat-api'}/files/${msg.saved_filename}`;
 
       if (isImageFile) {
         return (

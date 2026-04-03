@@ -22,23 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate required build secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${{ secrets.VITE_API_BASE }}" ]; then
-            echo "::error::Missing required secret: VITE_API_BASE"
-            exit 1
-          fi
-          if [ -z "${{ secrets.VITE_CHAT_API_BASE }}" ]; then
-            echo "::error::Missing required secret: VITE_CHAT_API_BASE"
-            exit 1
-          fi
-          if [ -z "${{ secrets.VITE_CHAT_WS_BASE }}" ]; then
-            echo "::error::Missing required secret: VITE_CHAT_WS_BASE"
-            exit 1
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -58,10 +41,6 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          build-args: |
-            VITE_API_BASE=${{ secrets.VITE_API_BASE }}
-            VITE_CHAT_API_BASE=${{ secrets.VITE_CHAT_API_BASE }}
-            VITE_CHAT_WS_BASE=${{ secrets.VITE_CHAT_WS_BASE }}
 
   deploy:
     runs-on: ubuntu-latest
