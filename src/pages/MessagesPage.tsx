@@ -3486,6 +3486,16 @@ const MessagesPage = () => {
                                 {renderMessageReactions(msg, 'left')}
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                {isPreviousSameSender && (
+                                  <span
+                                    className={`text-[10px] text-text-hint whitespace-nowrap transition-opacity ${menuVisible
+                                      ? 'opacity-100'
+                                      : 'opacity-0 pointer-events-none group-hover:opacity-100'
+                                      }`}
+                                  >
+                                    {formatMessageTime(msg.created_at)}
+                                  </span>
+                                )}
                                 {showUnreadCount && (
                                   <span className="text-[10px] font-semibold text-amber-500">{msg.unread_member_count}</span>
                                 )}
