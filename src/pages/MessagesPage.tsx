@@ -3476,9 +3476,6 @@ const MessagesPage = () => {
                                 {isWalletVerifiedUser(msg.sender_uuid) && <VerifiedIcon tooltipPlacement="bottom" />}
                                 <span className="text-[11px] text-text-hint shrink-0">{formatMessageTime(msg.created_at)}</span>
                                 {msg.is_edited && <span className="text-[10px] text-text-hint shrink-0">수정됨</span>}
-                                {showUnreadCount && (
-                                  <span className="text-[10px] font-semibold text-amber-500 shrink-0">읽지 않음 {msg.unread_member_count}</span>
-                                )}
                               </div>
                             )}
 
@@ -3488,17 +3485,22 @@ const MessagesPage = () => {
                                 {renderMessageMainContent(msg, isMe, isDeleted, 'irc')}
                                 {renderMessageReactions(msg, 'left')}
                               </div>
-                              <button
-                                type="button"
-                                onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
-                                className={`w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors transition-opacity shrink-0 ${menuVisible
-                                  ? 'opacity-100 pointer-events-auto'
-                                  : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
-                                  }`}
-                                aria-label="메시지 액션 열기"
-                              >
-                                ⋯
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {showUnreadCount && (
+                                  <span className="text-[10px] font-semibold text-amber-500">{msg.unread_member_count}</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenDesktopActionMenu(e, msg.message_id)}
+                                  className={`w-7 h-7 rounded-full flex items-center justify-center text-text-hint hover:text-text hover:bg-surface-2 text-lg transition-colors transition-opacity shrink-0 ${menuVisible
+                                    ? 'opacity-100 pointer-events-auto'
+                                    : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                                    }`}
+                                  aria-label="메시지 액션 열기"
+                                >
+                                  ⋯
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
