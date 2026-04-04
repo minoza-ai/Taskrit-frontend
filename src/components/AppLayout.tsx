@@ -339,6 +339,20 @@ const AppLayout = () => {
 
       setNotifications((prev) => prev.filter((item) => item.roomId !== roomId));
       setChatMessageOverlay((prev) => (prev?.roomId === roomId ? null : prev));
+
+      setPendingIncomingCall((prev) => {
+        if (prev?.roomId !== roomId) {
+          return prev;
+        }
+
+        stopCallRingtone();
+        try {
+          sessionStorage.removeItem(PENDING_INCOMING_CALL_STORAGE_KEY);
+        } catch {
+          // Ignore storage failures (e.g., private mode restrictions)
+        }
+        return null;
+      });
     };
 
     window.addEventListener('taskrit:chat-room-entered', onChatRoomEntered as EventListener);
