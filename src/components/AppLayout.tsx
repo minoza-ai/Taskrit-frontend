@@ -655,6 +655,7 @@ const AppLayout = () => {
   const moveToNotifiedRoom = (notification: ChatNotification) => {
     setIsNotificationOpen(false);
     setChatMessageOverlay(null);
+    setNotifications((prev) => prev.filter((n) => n.roomId !== notification.roomId));
 
     if (notification.notificationType === 'incoming_call' && notification.callerUserUuid) {
       moveToIncomingCallRoom({
