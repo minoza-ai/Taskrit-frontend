@@ -1850,6 +1850,14 @@ const MessagesPage = () => {
   }, [selectedConversation, accessToken]);
 
   useEffect(() => {
+    if (!selectedConversation) return;
+
+    window.dispatchEvent(new CustomEvent('taskrit:chat-room-entered', {
+      detail: { roomId: selectedConversation },
+    }));
+  }, [selectedConversation]);
+
+  useEffect(() => {
     if (!accessToken || !selectedConversation) {
       clearSocketResources();
       return;

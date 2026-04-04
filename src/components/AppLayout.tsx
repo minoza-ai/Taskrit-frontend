@@ -331,6 +331,24 @@ const AppLayout = () => {
   }, []);
 
   useEffect(() => {
+    const onChatRoomEntered = (event: Event) => {
+      const customEvent = event as CustomEvent<{ roomId?: string }>;
+      const roomId = customEvent.detail?.roomId;
+
+      if (!roomId) return;
+
+      setNotifications((prev) => prev.filter((item) => item.roomId !== roomId));
+      setChatMessageOverlay((prev) => (prev?.roomId === roomId ? null : prev));
+    };
+
+    window.addEventListener('taskrit:chat-room-entered', onChatRoomEntered as EventListener);
+
+    return () => {
+      window.removeEventListener('taskrit:chat-room-entered', onChatRoomEntered as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!accessToken) {
       stopCallRingtone();
       setPendingIncomingCall(null);
