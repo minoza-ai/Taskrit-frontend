@@ -906,7 +906,7 @@ const AppLayout = () => {
                 moveToNotifiedRoom(chatMessageOverlay);
               }
             }}
-            className="w-full rounded-2xl border border-blue-500/30 bg-surface/95 backdrop-blur-xl shadow-2xl p-3 text-left hover:border-blue-500/50 transition-colors"
+            className="w-full rounded-2xl border border-blue-500/45 bg-surface/98 backdrop-blur-md shadow-2xl p-3 text-left hover:border-blue-400/70 transition-colors"
             style={{
               animation: 'chatOverlayIn 220ms cubic-bezier(0.16, 1, 0.3, 1)',
             }}
@@ -927,9 +927,9 @@ const AppLayout = () => {
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-blue-500">새 메시지</div>
-                <div className="text-sm text-text mt-0.5 truncate">{chatMessageOverlay.roomName}</div>
-                <div className="text-[11px] text-text-hint mt-1 truncate">{chatMessageOverlay.preview}</div>
+                <div className="text-xs font-bold text-blue-500">새 메시지</div>
+                <div className="text-sm font-semibold text-text mt-0.5 truncate">{chatMessageOverlay.roomName}</div>
+                <div className="text-[13px] leading-5 text-text mt-1 line-clamp-2 break-words">{chatMessageOverlay.preview}</div>
               </div>
 
               <button
@@ -942,7 +942,7 @@ const AppLayout = () => {
                     chatOverlayTimerRef.current = null;
                   }
                 }}
-                className="text-text-hint hover:text-text p-1 rounded-md hover:bg-surface-2 transition-colors"
+                className="text-text-sub hover:text-text p-1 rounded-md hover:bg-surface-2 transition-colors"
                 aria-label="채팅 알림 닫기"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
