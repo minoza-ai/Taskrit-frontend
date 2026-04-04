@@ -3254,7 +3254,18 @@ const MessagesPage = () => {
                       </svg>
                     </button>
                     {selectedRoom && (
-                      <div className="w-7 h-7 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-[11px] font-semibold text-text-sub shrink-0">
+                      <button
+                        type="button"
+                        className={`w-7 h-7 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-[11px] font-semibold text-text-sub shrink-0 ${getRoomAvatarUrl(selectedRoom) ? 'cursor-zoom-in' : 'cursor-default'}`}
+                        onClick={() => {
+                          const avatarUrl = getRoomAvatarUrl(selectedRoom);
+                          if (avatarUrl) {
+                            setViewingImage(avatarUrl);
+                          }
+                        }}
+                        disabled={!getRoomAvatarUrl(selectedRoom)}
+                        aria-label="대화방 사진 크게 보기"
+                      >
                         {getRoomAvatarUrl(selectedRoom) ? (
                           <img
                             src={getRoomAvatarUrl(selectedRoom) || undefined}
@@ -3264,7 +3275,7 @@ const MessagesPage = () => {
                         ) : (
                           roomName(selectedRoom)?.[0] || '채'
                         )}
-                      </div>
+                      </button>
                     )}
                     <span className="font-semibold text-sm truncate">
                       {selectedRoom ? roomName(selectedRoom) : '채팅'}
@@ -3455,7 +3466,18 @@ const MessagesPage = () => {
                     <div className="mb-4 shrink-0">
                       <label className="block text-xs text-text-hint mb-2">대화방 사진</label>
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-text-sub font-semibold text-lg shrink-0">
+                        <button
+                          type="button"
+                          className={`w-14 h-14 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-text-sub font-semibold text-lg shrink-0 ${selectedRoom?.room_image_url ? 'cursor-zoom-in' : 'cursor-default'}`}
+                          onClick={() => {
+                            const roomImageUrl = toChatAssetUrl(selectedRoom?.room_image_url);
+                            if (roomImageUrl) {
+                              setViewingImage(roomImageUrl);
+                            }
+                          }}
+                          disabled={!selectedRoom?.room_image_url}
+                          aria-label="대화방 사진 크게 보기"
+                        >
                           {selectedRoom?.room_image_url ? (
                             <img
                               src={toChatAssetUrl(selectedRoom.room_image_url) || undefined}
@@ -3465,7 +3487,7 @@ const MessagesPage = () => {
                           ) : (
                             (selectedRoom?.room_name?.[0] || '팀')
                           )}
-                        </div>
+                        </button>
 
                         <input
                           ref={roomImageInputRef}
