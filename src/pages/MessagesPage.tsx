@@ -3484,7 +3484,8 @@ const MessagesPage = () => {
                         </button>
                         <button
                           type="button"
-                          className="btn-secondary px-3 py-2 rounded-md text-sm disabled:opacity-50"
+                          className="btn-danger px-3 py-2 rounded-md text-sm disabled:opacity-50"
+                          style={{ border: '1px solid var(--color-error)' }}
                           onClick={() => void handleDeleteRoomImage()}
                           disabled={isUpdatingRoomImage || !selectedRoom?.room_image_url}
                         >
