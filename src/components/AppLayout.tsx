@@ -92,6 +92,7 @@ type PendingIncomingCall = {
 
 const PENDING_INCOMING_CALL_STORAGE_KEY = 'taskrit:pending-incoming-call';
 const PENDING_INCOMING_CALL_MAX_AGE_MS = 90 * 1000;
+const CHAT_MESSAGE_OVERLAY_DURATION_MS = 4500;
 
 const AppLayout = () => {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -109,6 +110,7 @@ const AppLayout = () => {
   const [taskTokenBalance, setTaskTokenBalance] = useState<number | null>(null);
   const [taskTokenImage, setTaskTokenImage] = useState<string | null>(null);
   const [pendingIncomingCall, setPendingIncomingCall] = useState<PendingIncomingCall | null>(null);
+  const [chatMessageOverlay, setChatMessageOverlay] = useState<ChatNotification | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
   const profileButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -118,6 +120,7 @@ const AppLayout = () => {
   const reconnectAttemptRef = useRef<number>(0);
   const callRingtoneAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastNotifiedMessageByRoomRef = useRef<Record<string, string>>({});
+  const chatOverlayTimerRef = useRef<number | null>(null);
 
   const isDarkTheme = resolvedTheme() === 'dark';
   const themeIcon = themeMode === 'system' ? '⚙' : isDarkTheme ? '🌙' : '☀️';
@@ -302,6 +305,12 @@ const AppLayout = () => {
     if (!accessToken) {
       stopCallRingtone();
       setPendingIncomingCall(null);
+      setChatMessageOverlay(null);
+
+      if (chatOverlayTimerRef.current) {
+        window.clearTimeout(chatOverlayTimerRef.current);
+        chatOverlayTimerRef.current = null;
+      }
 
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
@@ -495,6 +504,15 @@ const AppLayout = () => {
             notificationType: 'new_message',
           };
 
+          if (chatOverlayTimerRef.current) {
+            window.clearTimeout(chatOverlayTimerRef.current);
+          }
+          setChatMessageOverlay(messageNotification);
+          chatOverlayTimerRef.current = window.setTimeout(() => {
+            setChatMessageOverlay(null);
+            chatOverlayTimerRef.current = null;
+          }, CHAT_MESSAGE_OVERLAY_DURATION_MS);
+
           setNotifications((prev) => [
             messageNotification,
             ...prev,
@@ -534,6 +552,10 @@ const AppLayout = () => {
       disposed = true;
       if (!readPendingIncomingCall()) {
         stopCallRingtone();
+      }
+      if (chatOverlayTimerRef.current) {
+        window.clearTimeout(chatOverlayTimerRef.current);
+        chatOverlayTimerRef.current = null;
       }
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
@@ -601,6 +623,7 @@ const AppLayout = () => {
 
   const moveToNotifiedRoom = (notification: ChatNotification) => {
     setIsNotificationOpen(false);
+    setChatMessageOverlay(null);
 
     if (notification.notificationType === 'incoming_call' && notification.callerUserUuid) {
       moveToIncomingCallRoom({
@@ -845,6 +868,63 @@ const AppLayout = () => {
             >
               통화 화면으로 이동
             </button>
+          </div>
+        </div>
+      )}
+
+      {chatMessageOverlay && (
+        <div className={`fixed z-50 left-4 right-4 md:left-auto md:right-5 ${pendingIncomingCall && location.pathname !== '/messages' ? 'top-[9.5rem] md:top-[10rem]' : 'top-[4.25rem] md:top-[4.75rem]'} md:w-[22rem]`}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => moveToNotifiedRoom(chatMessageOverlay)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                moveToNotifiedRoom(chatMessageOverlay);
+              }
+            }}
+            className="w-full rounded-2xl border border-blue-500/30 bg-surface/95 backdrop-blur-xl shadow-2xl p-3 text-left hover:border-blue-500/50 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center shrink-0">
+                {chatMessageOverlay.senderProfileImage ? (
+                  <img
+                    src={chatMessageOverlay.senderProfileImage.startsWith('http') ? chatMessageOverlay.senderProfileImage : `/api${chatMessageOverlay.senderProfileImage}`}
+                    alt={chatMessageOverlay.roomName}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-blue-500">새 메시지</div>
+                <div className="text-sm text-text mt-0.5 truncate">{chatMessageOverlay.roomName}</div>
+                <div className="text-[11px] text-text-hint mt-1 truncate">{chatMessageOverlay.preview}</div>
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setChatMessageOverlay(null);
+                  if (chatOverlayTimerRef.current) {
+                    window.clearTimeout(chatOverlayTimerRef.current);
+                    chatOverlayTimerRef.current = null;
+                  }
+                }}
+                className="text-text-hint hover:text-text p-1 rounded-md hover:bg-surface-2 transition-colors"
+                aria-label="채팅 알림 닫기"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       )}
