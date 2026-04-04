@@ -652,6 +652,28 @@ const AppLayout = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <style>{`
+        @keyframes chatOverlayIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes chatOverlayProgress {
+          from {
+            width: 100%;
+          }
+          to {
+            width: 0%;
+          }
+        }
+      `}</style>
+
       {/* Top bar */}
       <header className="fixed top-0 left-0 right-0 z-40 border-b border-border-light bg-bg/80 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 md:px-5 h-14 md:h-16 flex items-center justify-between gap-3">
@@ -885,6 +907,9 @@ const AppLayout = () => {
               }
             }}
             className="w-full rounded-2xl border border-blue-500/30 bg-surface/95 backdrop-blur-xl shadow-2xl p-3 text-left hover:border-blue-500/50 transition-colors"
+            style={{
+              animation: 'chatOverlayIn 220ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center shrink-0">
@@ -924,6 +949,16 @@ const AppLayout = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+
+            <div className="mt-2 h-1 w-full rounded-full bg-blue-500/20 overflow-hidden">
+              <div
+                key={chatMessageOverlay.id}
+                className="h-full rounded-full bg-blue-500"
+                style={{
+                  animation: `chatOverlayProgress ${CHAT_MESSAGE_OVERLAY_DURATION_MS}ms linear forwards`,
+                }}
+              />
             </div>
           </div>
         </div>
