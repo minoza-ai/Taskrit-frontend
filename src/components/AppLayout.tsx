@@ -632,7 +632,6 @@ const AppLayout = () => {
         if (!readPendingIncomingCall()) {
           stopCallRingtone();
         }
-        setNotifications((items) => items.map((item) => ({ ...item, seen: true })));
       }
       return next;
     });
@@ -952,7 +951,12 @@ const AppLayout = () => {
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : chatMessageOverlay.roomType === 'team' ? (
-                  <Users className="w-5 h-5 text-text-sub" />
+                  <svg className="w-5 h-5 text-text-sub" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" strokeWidth={2} />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M23 20v-2a4 4 0 0 0-3-3.87" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
                 ) : (
                   <span>{chatMessageOverlay.roomName?.[0] || '?'}</span>
                 )}
