@@ -80,6 +80,8 @@ type ChatNotification = {
   notificationType?: 'new_message' | 'incoming_call';
   callerUserUuid?: string;
   callerNickname?: string;
+  roomType?: 'dm' | 'team';
+  roomImageUrl?: string;
 };
 
 type PendingIncomingCall = {
@@ -131,6 +133,33 @@ const AppLayout = () => {
     : null;
   const profileInitial = (user?.nickname?.[0] || user?.user_id?.[0] || 'U').toUpperCase();
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
+
+  const toChatAssetUrl = (assetUrl?: string): string | null => {
+    if (!assetUrl) {
+      return null;
+    }
+
+    if (assetUrl.startsWith('http')) {
+      return assetUrl;
+    }
+
+    const chatApiBase = (import.meta.env.VITE_CHAT_API_BASE as string | undefined)?.trim() || '/chat-api';
+    return `${chatApiBase}${assetUrl.startsWith('/') ? assetUrl : `/${assetUrl}`}`;
+  };
+
+  const getNotificationAvatarSrc = (notification: ChatNotification): string | null => {
+    if (notification.notificationType === 'new_message' && notification.roomType === 'team') {
+      return toChatAssetUrl(notification.roomImageUrl) || null;
+    }
+
+    if (!notification.senderProfileImage) {
+      return null;
+    }
+
+    return notification.senderProfileImage.startsWith('http')
+      ? notification.senderProfileImage
+      : `/api${notification.senderProfileImage}`;
+  };
 
   const readPendingIncomingCall = (): PendingIncomingCall | null => {
     try {
@@ -502,6 +531,8 @@ const AppLayout = () => {
             seen: false,
             senderProfileImage: payload.message?.sender_profile_image as string | undefined,
             notificationType: 'new_message',
+            roomType: payload.room_type as 'dm' | 'team' | undefined,
+            roomImageUrl: payload.room_image_url as string | undefined,
           };
 
           if (chatOverlayTimerRef.current) {
@@ -912,17 +943,17 @@ const AppLayout = () => {
             }}
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center shrink-0">
-                {chatMessageOverlay.senderProfileImage ? (
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${getNotificationAvatarSrc(chatMessageOverlay) ? '' : 'bg-surface-3 text-text font-semibold text-lg'}`}>
+                {getNotificationAvatarSrc(chatMessageOverlay) ? (
                   <img
-                    src={chatMessageOverlay.senderProfileImage.startsWith('http') ? chatMessageOverlay.senderProfileImage : `/api${chatMessageOverlay.senderProfileImage}`}
+                    src={getNotificationAvatarSrc(chatMessageOverlay) || undefined}
                     alt={chatMessageOverlay.roomName}
                     className="w-full h-full rounded-full object-cover"
                   />
+                ) : chatMessageOverlay.roomType === 'team' ? (
+                  <Users className="w-5 h-5 text-text-sub" />
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
+                  <span>{chatMessageOverlay.roomName?.[0] || '?'}</span>
                 )}
               </div>
 
