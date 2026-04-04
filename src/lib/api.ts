@@ -648,6 +648,15 @@ export async function updateRoomImage(
   });
 }
 
+export async function deleteRoomImage(
+  token: string,
+  roomId: string,
+): Promise<ChatRoom> {
+  return chatRequest(`/rooms/${roomId}/image`, token, {
+    method: 'DELETE',
+  });
+}
+
 export async function createTeamRoom(
   token: string,
   members: string[],

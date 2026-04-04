@@ -6,6 +6,7 @@ import { useChatSettingsStore } from '../lib/chatSettings';
 import {
   addRoomMembers,
   createDmRoom,
+  deleteRoomImage,
   deleteRoomMessage,
   editRoomMessage,
   listChatUsers,
@@ -2707,6 +2708,35 @@ const MessagesPage = () => {
     }
   };
 
+  const handleDeleteRoomImage = async () => {
+    if (!accessToken || !selectedRoom || selectedRoom.room_type !== 'team') {
+      return;
+    }
+
+    if (!selectedRoom.room_image_url) {
+      return;
+    }
+
+    const shouldDelete = window.confirm('대화방 사진을 삭제하시겠습니까?');
+    if (!shouldDelete) {
+      return;
+    }
+
+    setIsUpdatingRoomImage(true);
+    setRoomImageError(null);
+
+    try {
+      const updatedRoom = await deleteRoomImage(accessToken, selectedRoom.room_id);
+      await loadRooms();
+      setSelectedConversation(updatedRoom.room_id);
+      showToast('대화방 사진이 삭제되었습니다.');
+    } catch (err: any) {
+      setRoomImageError(err.message || '대화방 사진 삭제에 실패했습니다.');
+    } finally {
+      setIsUpdatingRoomImage(false);
+    }
+  };
+
   const isRoomListSearching = normalizedRoomListSearchQuery.length > 0;
   const isInvitingFromDmRoom = inviteModalMode === 'invite-into-room' && selectedRoom?.room_type === 'dm';
   const shouldShowInviteRoomNameInput = inviteModalMode === 'create-team-room' || isInvitingFromDmRoom;
@@ -3451,6 +3481,14 @@ const MessagesPage = () => {
                           disabled={isUpdatingRoomImage}
                         >
                           {isUpdatingRoomImage ? '업로드 중...' : '사진 변경'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary px-3 py-2 rounded-md text-sm disabled:opacity-50"
+                          onClick={() => void handleDeleteRoomImage()}
+                          disabled={isUpdatingRoomImage || !selectedRoom?.room_image_url}
+                        >
+                          사진 삭제
                         </button>
                       </div>
                       {roomImageError && <div className="mt-2 text-xs text-red-500">{roomImageError}</div>}
