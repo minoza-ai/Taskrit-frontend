@@ -26,6 +26,8 @@ const MyPage = () => {
   const setOptimizeUploadedImages = useChatSettingsStore((s) => s.setOptimizeUploadedImages);
   const messageStyle = useChatSettingsStore((s) => s.messageStyle);
   const setMessageStyle = useChatSettingsStore((s) => s.setMessageStyle);
+  const shiftEnterBehavior = useChatSettingsStore((s) => s.shiftEnterBehavior);
+  const setShiftEnterBehavior = useChatSettingsStore((s) => s.setShiftEnterBehavior);
   const location = useLocation();
 
   const [editMode, setEditMode] = useState(false);
@@ -687,6 +689,34 @@ const MyPage = () => {
             </span>
           </div>
         </label>
+
+        <div className="mt-4">
+          <span className="text-sm font-medium text-text block mb-2">Shift + Enter 동작</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setShiftEnterBehavior('newline')}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${shiftEnterBehavior === 'newline'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-border hover:bg-surface-2'
+                }`}
+            >
+              <span className="text-sm font-semibold block">줄바꿈</span>
+              <span className="text-xs text-text-sub">Shift+Enter로 줄바꿈, Enter로 전송</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftEnterBehavior('send')}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${shiftEnterBehavior === 'send'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-border hover:bg-surface-2'
+                }`}
+            >
+              <span className="text-sm font-semibold block">전송</span>
+              <span className="text-xs text-text-sub">Shift+Enter로 전송, Enter로 줄바꿈</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* OTP 2FA Settings */}

@@ -113,13 +113,14 @@ const MessagesPage = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const roomImageInputRef = useRef<HTMLInputElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
 
   const optimizeImage = useChatSettingsStore((s) => s.optimizeUploadedImages);
   const messageStyle = useChatSettingsStore((s) => s.messageStyle);
+  const shiftEnterBehavior = useChatSettingsStore((s) => s.shiftEnterBehavior);
 
   const [blinkingMessageId, setBlinkingMessageId] = useState<string | null>(null);
   const [swipingMessageId, setSwipingMessageId] = useState<string | null>(null);
@@ -2403,7 +2404,7 @@ const MessagesPage = () => {
     openActionMenu(messageId);
   };
 
-  const handleMessageInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleMessageInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter') return;
 
     // 한글 IME 조합 중 Enter는 글자 확정 용도로만 사용하고 전송을 막는다.
@@ -2411,8 +2412,18 @@ const MessagesPage = () => {
       return;
     }
 
-    e.preventDefault();
-    void handleSend();
+    if (e.shiftKey) {
+      if (shiftEnterBehavior === 'send') {
+        e.preventDefault();
+        void handleSend();
+      }
+      return;
+    }
+
+    if (shiftEnterBehavior === 'newline') {
+      e.preventDefault();
+      void handleSend();
+    }
   };
 
   const openInviteModal = async (mode: InviteModalMode) => {
@@ -4120,7 +4131,7 @@ const MessagesPage = () => {
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-end gap-2">
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -4138,9 +4149,8 @@ const MessagesPage = () => {
                     </svg>
                   </button>
 
-                  <input
+                  <textarea
                     ref={messageInputRef}
-                    type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onCompositionStart={() => setIsComposingMessage(true)}
@@ -4148,7 +4158,8 @@ const MessagesPage = () => {
                     onKeyDown={handleMessageInputKeyDown}
                     placeholder={isUploading ? "파일 업로드 중..." : "메시지를 입력하세요..."}
                     readOnly={isUploading}
-                    className="glass-input flex-1 py-2.5 px-4 rounded-full text-sm"
+                    rows={1}
+                    className="glass-input flex-1 py-2.5 px-4 rounded-2xl text-sm leading-5 min-h-[42px] max-h-32 resize-none overflow-y-auto"
                   />
                   <button
                     onClick={handleSend}
