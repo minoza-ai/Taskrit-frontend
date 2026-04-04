@@ -27,6 +27,7 @@ import {
 import VerifiedIcon from '../components/VerifiedIcon';
 const PENDING_INCOMING_CALL_STORAGE_KEY = 'taskrit:pending-incoming-call';
 type InviteModalMode = 'create-team-room' | 'invite-into-room';
+const MAX_MESSAGE_INPUT_HEIGHT_PX = 160;
 
 const MessagesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -995,11 +996,25 @@ const MessagesPage = () => {
     }, 0);
   };
 
+  const adjustMessageInputHeight = () => {
+    const input = messageInputRef.current;
+    if (!input) return;
+
+    input.style.height = 'auto';
+    const nextHeight = Math.min(input.scrollHeight, MAX_MESSAGE_INPUT_HEIGHT_PX);
+    input.style.height = `${nextHeight}px`;
+    input.style.overflowY = input.scrollHeight > MAX_MESSAGE_INPUT_HEIGHT_PX ? 'auto' : 'hidden';
+  };
+
   const handleMessageScroll = () => {
     if (isNearMessageBottom()) {
       setShowNewMessageNotice(false);
     }
   };
+
+  useLayoutEffect(() => {
+    adjustMessageInputHeight();
+  }, [newMessage]);
 
   useLayoutEffect(() => {
     if (!shouldAutoScrollOnNextMessageRef.current) return;
@@ -4159,7 +4174,7 @@ const MessagesPage = () => {
                     placeholder={isUploading ? "파일 업로드 중..." : "메시지를 입력하세요..."}
                     readOnly={isUploading}
                     rows={1}
-                    className="glass-input flex-1 py-2.5 px-4 rounded-2xl text-sm leading-5 min-h-[42px] max-h-32 resize-none overflow-y-auto"
+                    className="glass-input flex-1 py-2.5 px-4 rounded-2xl text-sm leading-5 min-h-[42px] max-h-40 resize-none overflow-y-hidden"
                   />
                   <button
                     onClick={handleSend}
