@@ -2649,9 +2649,28 @@ const MessagesPage = () => {
   const isInviteSubmitDisabled = isInviting
     || (inviteModalMode === 'create-team-room' ? inviteSelectedUsers.length < 2 : inviteSelectedUsers.length === 0)
     || (isInvitingFromDmRoom && inviteRoomName.trim().length === 0);
+  const popupBackdropClass = isLightTheme
+    ? 'absolute inset-0 bg-slate-900/30 backdrop-blur-[1px]'
+    : 'absolute inset-0 bg-black/55 backdrop-blur-[1px]';
+  const popupCardClass = isLightTheme
+    ? 'relative w-full max-w-sm rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xl p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]'
+    : 'relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]';
+  const popupInputClass = isLightTheme
+    ? 'w-full py-2 px-3 rounded-lg text-sm bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/35 focus:border-blue-400'
+    : 'w-full glass-input py-2 px-3 rounded-lg text-sm';
+  const popupInlineInputClass = isLightTheme
+    ? 'flex-1 py-2 px-3 rounded-lg text-sm bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/35 focus:border-blue-400'
+    : 'glass-input flex-1 py-2 px-3 rounded-lg text-sm';
+  const popupListClass = isLightTheme
+    ? 'flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-slate-200 bg-slate-50/70'
+    : 'flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border';
+  const popupRowHoverClass = isLightTheme ? 'hover:bg-slate-100' : 'hover:bg-surface-2';
+  const popupSelectedRowClass = isLightTheme
+    ? 'bg-blue-500/10 border border-blue-200'
+    : 'bg-active/20';
 
   const inviteModalBody = (
-    <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
+    <div className={popupCardClass}>
       <h3 className="text-base font-semibold mb-4">{inviteModalMode === 'create-team-room' ? '단체 채팅방 만들기' : '현재 대화방 사용자 초대'}</h3>
 
       <div className="mb-4 shrink-0">
@@ -2659,7 +2678,7 @@ const MessagesPage = () => {
           <input
             type="text"
             placeholder={isInvitingFromDmRoom ? '단체방 제목 입력' : '채팅방 이름 입력'}
-            className="w-full glass-input py-2 px-3 rounded-lg text-sm mb-3"
+            className={`${popupInputClass} mb-3`}
             value={inviteRoomName}
             onChange={(e) => setInviteRoomName(e.target.value)}
           />
@@ -2667,7 +2686,7 @@ const MessagesPage = () => {
         <input
           type="text"
           placeholder="사용자 검색"
-          className="w-full glass-input py-2 px-3 rounded-lg text-sm"
+          className={popupInputClass}
           value={inviteSearchQuery}
           onFocus={async () => {
             try {
@@ -2683,14 +2702,14 @@ const MessagesPage = () => {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border">
+      <div className={popupListClass}>
         {inviteCandidateUsers
           .map((u) => {
             const isSelected = inviteSelectedUsers.some((selected) => selected.user_uuid === u.user_uuid);
             return (
               <button
                 key={u.user_uuid}
-                className={`flex items-center gap-3 w-full p-2 rounded-lg transition-colors ${isSelected ? 'bg-active/20' : 'hover:bg-surface-2'}`}
+                className={`flex items-center gap-3 w-full p-2 rounded-lg transition-colors border ${isSelected ? popupSelectedRowClass : `border-transparent ${popupRowHoverClass}`}`}
                 onClick={() => {
                   if (isSelected) {
                     setInviteSelectedUsers((prev) => prev.filter((p) => p.user_uuid !== u.user_uuid));
@@ -3321,11 +3340,11 @@ const MessagesPage = () => {
                 <div className="absolute inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="채팅방 참여자 목록">
                   <button
                     type="button"
-                    className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+                    className={popupBackdropClass}
                     onClick={() => setIsRoomMembersPopupOpen(false)}
                     aria-label="참여자 목록 닫기"
                   />
-                  <div className="relative w-full max-w-sm glass-card rounded-xl border border-glass-border p-5 animate-modal-in overflow-hidden flex flex-col max-h-[80vh]">
+                  <div className={popupCardClass}>
                     <h3 className="text-base font-semibold mb-4">대화 참여자</h3>
 
                     <div className="mb-4 shrink-0">
@@ -3338,7 +3357,7 @@ const MessagesPage = () => {
                             setRoomNameDraft(e.target.value);
                             if (roomNameError) setRoomNameError(null);
                           }}
-                          className="glass-input flex-1 py-2 px-3 rounded-lg text-sm"
+                          className={popupInlineInputClass}
                           placeholder="대화방 이름 입력"
                           disabled={isUpdatingRoomName}
                         />
@@ -3351,12 +3370,12 @@ const MessagesPage = () => {
                           {isUpdatingRoomName ? '변경 중...' : '변경'}
                         </button>
                       </div>
-                      {roomNameError && <div className="mt-2 text-xs text-red-400">{roomNameError}</div>}
+                      {roomNameError && <div className="mt-2 text-xs text-red-500">{roomNameError}</div>}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto py-2 -mx-2 px-2 min-h-0 mb-4 border-y border-border">
+                    <div className={popupListClass}>
                       {currentRoomMembers.map((member) => (
-                        <div key={`${member.user_uuid}-${member.user_id}`} className="flex items-center justify-between gap-3 w-full p-2 rounded-lg transition-colors hover:bg-surface-2">
+                        <div key={`${member.user_uuid}-${member.user_id}`} className={`flex items-center justify-between gap-3 w-full p-2 rounded-lg transition-colors ${popupRowHoverClass}`}>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-sm font-semibold truncate">
@@ -3389,7 +3408,7 @@ const MessagesPage = () => {
                 <div className="absolute inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="현재 대화방 사용자 초대">
                   <button
                     type="button"
-                    className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+                    className={popupBackdropClass}
                     onClick={() => setIsInviteModalOpen(false)}
                     aria-label="초대 팝업 닫기"
                   />
@@ -3999,7 +4018,7 @@ const MessagesPage = () => {
         </div>
       )}
       {isInviteModalOpen && inviteModalMode === 'create-team-room' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="단체 채팅방 만들기">
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm ${isLightTheme ? 'bg-slate-900/35' : 'bg-black/70'}`} role="dialog" aria-modal="true" aria-label="단체 채팅방 만들기">
           {inviteModalBody}
         </div>
       )}
