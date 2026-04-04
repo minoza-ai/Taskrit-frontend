@@ -474,6 +474,7 @@ export interface ChatRoom {
   room_id: string;
   room_type: 'dm' | 'team';
   room_name: string;
+  room_image_url?: string | null;
   members: string[];
   created_at: string;
   created_by: string;
@@ -630,6 +631,20 @@ export async function updateRoomName(
   return chatRequest(`/rooms/${roomId}/name`, token, {
     method: 'PATCH',
     body: JSON.stringify({ room_name }),
+  });
+}
+
+export async function updateRoomImage(
+  token: string,
+  roomId: string,
+  image: File,
+): Promise<ChatRoom> {
+  const formData = new FormData();
+  formData.append('image', image);
+
+  return chatRequest(`/rooms/${roomId}/image`, token, {
+    method: 'PATCH',
+    body: formData,
   });
 }
 

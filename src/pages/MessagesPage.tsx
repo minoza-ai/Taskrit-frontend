@@ -17,6 +17,7 @@ import {
   toggleRoomMessageReaction,
   uploadRoomFile,
   reportUser,
+  updateRoomImage,
   updateRoomName,
   type ChatMessage,
   type ChatRoom,
@@ -64,6 +65,8 @@ const MessagesPage = () => {
   const [roomNameDraft, setRoomNameDraft] = useState('');
   const [isUpdatingRoomName, setIsUpdatingRoomName] = useState(false);
   const [roomNameError, setRoomNameError] = useState<string | null>(null);
+  const [isUpdatingRoomImage, setIsUpdatingRoomImage] = useState(false);
+  const [roomImageError, setRoomImageError] = useState<string | null>(null);
   
   // Group Chat Invite State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -108,6 +111,7 @@ const MessagesPage = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const roomImageInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -1383,6 +1387,27 @@ const MessagesPage = () => {
     return profileImageUrl.startsWith('http') ? profileImageUrl : `/api${profileImageUrl}`;
   };
 
+  const toChatAssetUrl = (assetUrl?: string | null) => {
+    if (!assetUrl) {
+      return null;
+    }
+
+    if (assetUrl.startsWith('http')) {
+      return assetUrl;
+    }
+
+    const base = import.meta.env.VITE_CHAT_API_BASE || '/chat-api';
+    return `${base}${assetUrl.startsWith('/') ? assetUrl : `/${assetUrl}`}`;
+  };
+
+  const getRoomAvatarUrl = (room: ChatRoom) => {
+    if (room.room_type === 'team') {
+      return toChatAssetUrl(room.room_image_url);
+    }
+
+    return toAvatarUrl(getOtherUser(room)?.profile_image_url);
+  };
+
   function getCallParticipants() {
     if (!user?.user_uuid) {
       return [] as Array<{
@@ -2614,6 +2639,7 @@ const MessagesPage = () => {
 
     setRoomNameDraft(selectedRoom.room_name || '');
     setRoomNameError(null);
+    setRoomImageError(null);
   }, [isRoomMembersPopupOpen, selectedRoom?.room_id, selectedRoom?.room_name, selectedRoom?.room_type]);
 
   const handleUpdateRoomName = async () => {
@@ -2640,6 +2666,44 @@ const MessagesPage = () => {
       setRoomNameError(err.message || '대화방 이름 변경에 실패했습니다.');
     } finally {
       setIsUpdatingRoomName(false);
+    }
+  };
+
+  const handleUpdateRoomImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const imageFile = e.target.files?.[0];
+    e.target.value = '';
+
+    if (!imageFile) {
+      return;
+    }
+
+    if (!accessToken || !selectedRoom || selectedRoom.room_type !== 'team') {
+      return;
+    }
+
+    if (!imageFile.type.startsWith('image/')) {
+      setRoomImageError('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+    if (imageFile.size > maxSize) {
+      setRoomImageError('이미지 크기는 5MB를 초과할 수 없습니다.');
+      return;
+    }
+
+    setIsUpdatingRoomImage(true);
+    setRoomImageError(null);
+
+    try {
+      const updatedRoom = await updateRoomImage(accessToken, selectedRoom.room_id, imageFile);
+      await loadRooms();
+      setSelectedConversation(updatedRoom.room_id);
+      showToast('대화방 사진이 변경되었습니다.');
+    } catch (err: any) {
+      setRoomImageError(err.message || '대화방 사진 변경에 실패했습니다.');
+    } finally {
+      setIsUpdatingRoomImage(false);
     }
   };
 
@@ -2769,9 +2833,7 @@ const MessagesPage = () => {
 
   const renderConversationListItem = (conv: ChatRoom) => {
     const targetUser = getOtherUser(conv);
-    const profileImageUrl = targetUser?.profile_image_url
-      ? (targetUser.profile_image_url.startsWith('http') ? targetUser.profile_image_url : `/api${targetUser.profile_image_url}`)
-      : null;
+    const profileImageUrl = getRoomAvatarUrl(conv);
 
     return (
       <button
@@ -3161,6 +3223,19 @@ const MessagesPage = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
+                    {selectedRoom && (
+                      <div className="w-7 h-7 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-[11px] font-semibold text-text-sub shrink-0">
+                        {getRoomAvatarUrl(selectedRoom) ? (
+                          <img
+                            src={getRoomAvatarUrl(selectedRoom) || undefined}
+                            alt={roomName(selectedRoom)}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          roomName(selectedRoom)?.[0] || '채'
+                        )}
+                      </div>
+                    )}
                     <span className="font-semibold text-sm truncate">
                       {selectedRoom ? roomName(selectedRoom) : '채팅'}
                     </span>
@@ -3346,6 +3421,40 @@ const MessagesPage = () => {
                   />
                   <div className={popupCardClass}>
                     <h3 className="text-base font-semibold mb-4">대화 참여자</h3>
+
+                    <div className="mb-4 shrink-0">
+                      <label className="block text-xs text-text-hint mb-2">대화방 사진</label>
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-text-sub font-semibold text-lg shrink-0">
+                          {selectedRoom?.room_image_url ? (
+                            <img
+                              src={toChatAssetUrl(selectedRoom.room_image_url) || undefined}
+                              alt="Room"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            (selectedRoom?.room_name?.[0] || '팀')
+                          )}
+                        </div>
+
+                        <input
+                          ref={roomImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => void handleUpdateRoomImage(e)}
+                        />
+                        <button
+                          type="button"
+                          className="btn-secondary px-3 py-2 rounded-md text-sm disabled:opacity-50"
+                          onClick={() => roomImageInputRef.current?.click()}
+                          disabled={isUpdatingRoomImage}
+                        >
+                          {isUpdatingRoomImage ? '업로드 중...' : '사진 변경'}
+                        </button>
+                      </div>
+                      {roomImageError && <div className="mt-2 text-xs text-red-500">{roomImageError}</div>}
+                    </div>
 
                     <div className="mb-4 shrink-0">
                       <label className="block text-xs text-text-hint mb-2">대화방 이름</label>
