@@ -84,7 +84,7 @@ const MarketplacePage = () => {
           </div>
 
           {/* Category filter */}
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+          <div className="flex flex-wrap gap-2 mb-6">
             {categories.map((cat, idx) => (
               <button
                 key={cat}
