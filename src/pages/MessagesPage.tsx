@@ -116,6 +116,7 @@ const MessagesPage = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const roomImageInputRef = useRef<HTMLInputElement>(null);
+  const roomListSearchInputRef = useRef<HTMLInputElement | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -2513,6 +2514,10 @@ const MessagesPage = () => {
         await loadRooms();
         if (isDmToTeamUpgrade) {
           setRoomListSearchQuery('');
+          setSearchedUsers([]);
+          if (roomListSearchInputRef.current) {
+            roomListSearchInputRef.current.value = '';
+          }
         }
         setSelectedConversation(finalRoom.room_id);
         setMobileView('chat');
@@ -2535,6 +2540,10 @@ const MessagesPage = () => {
       setInviteRoomName('');
       setInviteSearchQuery('');
       setRoomListSearchQuery('');
+      setSearchedUsers([]);
+      if (roomListSearchInputRef.current) {
+        roomListSearchInputRef.current.value = '';
+      }
       
       await loadRooms();
       setSelectedConversation(newRoom.room_id);
@@ -2575,6 +2584,10 @@ const MessagesPage = () => {
     try {
       const room = await createDmRoom(accessToken, targetUser.user_uuid, `${targetUser.nickname}님과의 대화`);
       setRoomListSearchQuery('');
+      setSearchedUsers([]);
+      if (roomListSearchInputRef.current) {
+        roomListSearchInputRef.current.value = '';
+      }
       await loadRooms();
       setSelectedConversation(room.room_id);
       setMobileView('chat');
@@ -2636,40 +2649,29 @@ const MessagesPage = () => {
       );
     });
 
-  useEffect(() => {
-    if (!accessToken || !normalizedRoomListSearchQuery) {
+  const handleUserSearchSubmit = async () => {
+    const trimmedQuery = (roomListSearchInputRef.current?.value || '').trim();
+    setRoomListSearchQuery(trimmedQuery);
+
+    if (!accessToken || !trimmedQuery) {
       setSearchedUsers([]);
       setIsSearchingUsers(false);
       return;
     }
 
-    let disposed = false;
-    const timerId = window.setTimeout(async () => {
-      try {
-        setIsSearchingUsers(true);
-        const results = await listChatUsers(accessToken, {
-          query: normalizedRoomListSearchQuery,
-          limit: 10,
-        });
-
-        if (disposed) return;
-        setSearchedUsers(results.filter((chatUser) => chatUser.user_uuid !== user?.user_uuid));
-      } catch {
-        if (!disposed) {
-          setSearchedUsers([]);
-        }
-      } finally {
-        if (!disposed) {
-          setIsSearchingUsers(false);
-        }
-      }
-    }, 180);
-
-    return () => {
-      disposed = true;
-      window.clearTimeout(timerId);
-    };
-  }, [accessToken, normalizedRoomListSearchQuery, user?.user_uuid]);
+    try {
+      setIsSearchingUsers(true);
+      const results = await listChatUsers(accessToken, {
+        query: trimmedQuery,
+        limit: 10,
+      });
+      setSearchedUsers(results.filter((chatUser) => chatUser.user_uuid !== user?.user_uuid));
+    } catch {
+      setSearchedUsers([]);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  };
 
   useEffect(() => {
     const originalOverflowHtml = document.documentElement.style.overflow;
@@ -3050,22 +3052,31 @@ const MessagesPage = () => {
           <div className="mt-3 md:mt-0 mb-3">
             <div className="flex items-center gap-2">
               <input
+                ref={roomListSearchInputRef}
                 type="text"
-                value={roomListSearchQuery}
-                onChange={(e) => setRoomListSearchQuery(e.target.value)}
-                onFocus={async () => {
-                  try {
-                    if (accessToken) {
-                      const updatedUsers = await listChatUsers(accessToken);
-                      setChatUsers(updatedUsers);
-                    }
-                  } catch {
-                    // Ignore silent errors
+                defaultValue=""
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleUserSearchSubmit();
                   }
                 }}
                 placeholder="닉네임 또는 아이디로 검색"
                 className="glass-input flex-1 min-w-0 py-2.5 px-4 rounded-md text-sm"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  void handleUserSearchSubmit();
+                }}
+                className="shrink-0 p-2.5 rounded-md border border-border bg-surface hover:bg-surface-2 transition-colors"
+                aria-label="사용자 검색"
+                title="사용자 검색"
+              >
+                <svg className="w-5 h-5 text-text-hint hover:text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.35-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
               <button
                 type="button"
                 onClick={() => void openInviteModal('create-team-room')}
@@ -3103,7 +3114,10 @@ const MessagesPage = () => {
                     <div className="text-xs text-text-hint py-3 px-2">사용자 검색 중...</div>
                   )}
                   {!isSearchingUsers && userSearchResults.map((chatUser) => renderUserSearchItem(chatUser))}
-                  {!isSearchingUsers && userSearchResults.length === 0 && (
+                  {!isSearchingUsers && !normalizedRoomListSearchQuery && (
+                    <div className="text-xs text-text-hint py-3 px-2">검색 버튼을 눌러 사용자 검색을 실행하세요.</div>
+                  )}
+                  {!isSearchingUsers && normalizedRoomListSearchQuery && userSearchResults.length === 0 && (
                     <div className="text-xs text-text-hint py-3 px-2">사용자 검색 결과가 없습니다.</div>
                   )}
                 </div>
