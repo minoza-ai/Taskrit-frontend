@@ -3098,7 +3098,7 @@ const MessagesPage = () => {
           {isRoomListSearching ? (
             <div className="space-y-4">
               <div>
-                <div className="px-1 mb-1 text-base font-bold tracking-wide text-white">최근 채팅</div>
+                <div className="px-1 mb-1 text-base font-bold tracking-wide text-text">최근 채팅</div>
                 <div className="flex flex-col gap-1">
                   {recentChatSearchResults.map((conv) => renderConversationListItem(conv))}
                   {recentChatSearchResults.length === 0 && (
@@ -3108,7 +3108,7 @@ const MessagesPage = () => {
               </div>
 
               <div>
-                <div className="px-1 mb-1 text-base font-bold tracking-wide text-white">사용자 검색</div>
+                <div className="px-1 mb-1 text-base font-bold tracking-wide text-text">사용자 검색</div>
                 <div className="flex flex-col gap-1">
                   {isSearchingUsers && (
                     <div className="text-xs text-text-hint py-3 px-2">사용자 검색 중...</div>
