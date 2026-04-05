@@ -109,7 +109,6 @@ const AppLayout = () => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileImageError, setIsProfileImageError] = useState(false);
   const [taskTokenBalance, setTaskTokenBalance] = useState<number | null>(null);
-  const [taskTokenImage, setTaskTokenImage] = useState<string | null>(null);
   const [pendingIncomingCall, setPendingIncomingCall] = useState<PendingIncomingCall | null>(null);
   const [chatMessageOverlay, setChatMessageOverlay] = useState<ChatNotification | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -130,6 +129,7 @@ const AppLayout = () => {
   const profileImageSrc = user?.profile_image_url
     ? user.profile_image_url.startsWith('http') ? user.profile_image_url : `/api${user.profile_image_url}`
     : null;
+  const taskTokenImage = `${import.meta.env.BASE_URL}token.png`;
   const profileInitial = (user?.nickname?.[0] || user?.user_id?.[0] || 'U').toUpperCase();
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
 
@@ -189,11 +189,6 @@ const AppLayout = () => {
     if (!user?.wallet_address) {
       setTaskTokenBalance(null);
       return;
-    }
-    
-    const envTaskTokenImage = (import.meta.env.VITE_TASK_TOKEN_IMAGE as string | undefined)?.trim();
-    if (envTaskTokenImage) {
-      setTaskTokenImage(envTaskTokenImage);
     }
 
     // Fallbacks just in case .env defaults aren't caught by Vite types
@@ -810,13 +805,7 @@ const AppLayout = () => {
                 title="TASK 환전 페이지로 이동"
                 aria-label="TASK 환전 페이지로 이동"
               >
-                {taskTokenImage ? (
-                  <img src={taskTokenImage} alt="TASK" className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm bg-surface-3" />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] font-black text-white shrink-0 shadow-sm">
-                    T
-                  </div>
-                )}
+                <img src={taskTokenImage} alt="TASK" className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm bg-surface-3" />
                 <span className="text-xs font-semibold text-text tabular-nums tracking-tight">
                   {taskTokenBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })} <span className="text-[10px] text-text-hint font-medium ml-0.5">TASK</span>
                 </span>
