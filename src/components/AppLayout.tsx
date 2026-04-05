@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { PublicKey } from '@solana/web3.js';
 import { useAuthStore } from '../lib/store';
 import { useThemeStore } from '../lib/theme';
 
@@ -192,56 +191,16 @@ const AppLayout = () => {
       return;
     }
     
+    const envTaskTokenImage = (import.meta.env.VITE_TASK_TOKEN_IMAGE as string | undefined)?.trim();
+    if (envTaskTokenImage) {
+      setTaskTokenImage(envTaskTokenImage);
+    }
+
     // Fallbacks just in case .env defaults aren't caught by Vite types
     const mintAddress = import.meta.env.VITE_TASK_TOKEN_MINT || '3TRVYjSd1DrC4Jsn2bhpHsYCykkUZdEUK4Tok8jENMfs';
     const rpcUrl = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 
     let isMounted = true;
-
-    const fetchTokenImage = async () => {
-      if (taskTokenImage) return; // Already fetched
-      try {
-        const metaProgramId = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
-        const mintPubKey = new PublicKey(mintAddress);
-        const [pda] = PublicKey.findProgramAddressSync(
-          [
-            new TextEncoder().encode('metadata'),
-            metaProgramId.toBytes(),
-            mintPubKey.toBytes()
-          ],
-          metaProgramId
-        );
-        
-        const response = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getAccountInfo',
-            params: [pda.toBase58(), { encoding: 'base64' }]
-          })
-        });
-        const data = await response.json();
-        
-        if (isMounted && data.result?.value?.data) {
-          const base64Data = data.result.value.data[0];
-          const decodedData = atob(base64Data);
-          const uriMatch = decodedData.match(/https?:\/\/[^\s\0]+/);
-          if (uriMatch) {
-            const uri = uriMatch[0];
-            const metaResponse = await fetch(uri);
-            const metaJson = await metaResponse.json();
-            if (isMounted && metaJson.image) {
-              const imageUrl = metaJson.image.replace('ipfs://', 'https://ipfs.io/ipfs/');
-              setTaskTokenImage(imageUrl);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to fetch TASK token image', e);
-      }
-    };
 
     const fetchBalance = async () => {
       try {
@@ -274,7 +233,6 @@ const AppLayout = () => {
       }
     };
     
-    fetchTokenImage();
     fetchBalance();
     const intervalId = window.setInterval(fetchBalance, 30000); // refresh every 30s
     return () => {
@@ -413,7 +371,7 @@ const AppLayout = () => {
       }
 
       if (isLocalhost) {
-        return 'ws://localhost:3001/ws';
+        return `${wsProtocol}://${window.location.host}/chat-ws`;
       }
 
       return `${wsProtocol}://${window.location.host}/chat-ws`;

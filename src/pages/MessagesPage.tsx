@@ -1887,7 +1887,7 @@ const MessagesPage = () => {
       }
 
       if (isLocalhost) {
-        return 'ws://localhost:3001/ws';
+        return `${wsProtocol}://${window.location.host}/chat-ws`;
       }
 
       return `${wsProtocol}://${window.location.host}/chat-ws`;
@@ -2592,18 +2592,19 @@ const MessagesPage = () => {
   };
 
   const normalizedRoomListSearchQuery = roomListSearchQuery.trim().toLowerCase();
+  const toSearchText = (value?: string | null) => (value || '').toLowerCase();
   const recentChatSearchResults = normalizedRoomListSearchQuery
     ? rooms.filter((room) => {
       if (room.room_type === 'team') {
-        return room.room_name.toLowerCase().includes(normalizedRoomListSearchQuery);
+        return toSearchText(room.room_name).includes(normalizedRoomListSearchQuery);
       }
 
       const otherUser = getOtherUser(room);
       if (!otherUser) return false;
 
       return (
-        otherUser.nickname.toLowerCase().includes(normalizedRoomListSearchQuery)
-        || otherUser.user_id.toLowerCase().includes(normalizedRoomListSearchQuery)
+        toSearchText(otherUser.nickname).includes(normalizedRoomListSearchQuery)
+        || toSearchText(otherUser.user_id).includes(normalizedRoomListSearchQuery)
       );
     })
     : rooms;
@@ -2611,8 +2612,8 @@ const MessagesPage = () => {
     ? chatUsers
       .filter((chatUser) => chatUser.user_uuid !== user?.user_uuid)
       .filter((chatUser) => (
-        chatUser.nickname.toLowerCase().includes(normalizedRoomListSearchQuery)
-        || chatUser.user_id.toLowerCase().includes(normalizedRoomListSearchQuery)
+        toSearchText(chatUser.nickname).includes(normalizedRoomListSearchQuery)
+        || toSearchText(chatUser.user_id).includes(normalizedRoomListSearchQuery)
       ))
       .sort((a, b) => Number(!!findDmRoomByUserUuid(b.user_uuid)) - Number(!!findDmRoomByUserUuid(a.user_uuid)))
     : [];
@@ -2632,8 +2633,8 @@ const MessagesPage = () => {
         return inviteModalMode !== 'create-team-room';
       }
       return (
-        chatUser.nickname.toLowerCase().includes(inviteSearchNormalized)
-        || chatUser.user_id.toLowerCase().includes(inviteSearchNormalized)
+        toSearchText(chatUser.nickname).includes(inviteSearchNormalized)
+        || toSearchText(chatUser.user_id).includes(inviteSearchNormalized)
       );
     });
 
@@ -2856,7 +2857,7 @@ const MessagesPage = () => {
                 <div className="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center shrink-0">
                   {u.profile_image_url ? (
                     <img src={u.profile_image_url.startsWith('http') ? u.profile_image_url : `/api${u.profile_image_url}`} alt="profile" className="w-full h-full rounded-full object-cover" />
-                  ) : u.nickname[0]}
+                  ) : (u.nickname?.[0] || u.user_id?.[0] || '?')}
                 </div>
                 <div className="flex-1 text-left min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
