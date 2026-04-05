@@ -15,6 +15,7 @@ import MarketplacePage from './pages/MarketplacePage';
 import MembershipPage from './pages/MembershipPage';
 import MessagesPage from './pages/MessagesPage';
 import MyAssetsPage from './pages/MyAssetsPage';
+import ExchangePage from './pages/ExchangePage';
 import AppLayout from './components/AppLayout';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -53,6 +54,7 @@ const App = () => {
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/marketplace" element={<MarketplacePage />} />
+        <Route path="/exchange" element={<ExchangePage />} />
         <Route path="/membership" element={<MembershipPage />} />
         <Route path="/messages" element={<MessagesPage />} />
       </Route>

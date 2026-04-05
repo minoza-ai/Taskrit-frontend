@@ -845,7 +845,13 @@ const AppLayout = () => {
             </div>
 
             {user?.wallet_address && taskTokenBalance !== null && (
-              <div className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 rounded-full border border-border bg-surface-2 mx-0.5 md:mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_2px_rgba(255,255,255,0.02)] shrink-0 transition-colors" title="TASK 잔액">
+              <button
+                type="button"
+                onClick={() => navigate('/exchange')}
+                className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 rounded-full border border-border bg-surface-2 mx-0.5 md:mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_2px_rgba(255,255,255,0.02)] shrink-0 transition-colors hover:border-text-hint hover:bg-hover"
+                title="TASK 환전 페이지로 이동"
+                aria-label="TASK 환전 페이지로 이동"
+              >
                 {taskTokenImage ? (
                   <img src={taskTokenImage} alt="TASK" className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm bg-surface-3" />
                 ) : (
@@ -856,7 +862,7 @@ const AppLayout = () => {
                 <span className="text-xs font-semibold text-text tabular-nums tracking-tight">
                   {taskTokenBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })} <span className="text-[10px] text-text-hint font-medium ml-0.5">TASK</span>
                 </span>
-              </div>
+              </button>
             )}
 
             <div className="relative">
