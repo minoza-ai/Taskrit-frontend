@@ -585,8 +585,25 @@ export async function uploadRoomFile(
   }
 }
 
-export async function listChatUsers(token: string): Promise<ChatUser[]> {
-  return chatRequest('/users', token);
+type ListChatUsersOptions = {
+  query?: string;
+  limit?: number;
+};
+
+export async function listChatUsers(token: string, options?: ListChatUsersOptions): Promise<ChatUser[]> {
+  const params = new URLSearchParams();
+  const query = options?.query?.trim();
+
+  if (query) {
+    params.set('query', query);
+    const cappedLimit = Math.min(Math.max(options?.limit ?? 10, 1), 10);
+    params.set('limit', String(cappedLimit));
+  }
+
+  const queryString = params.toString();
+  const path = queryString ? `/users?${queryString}` : '/users';
+
+  return chatRequest(path, token);
 }
 
 export async function createDmRoom(

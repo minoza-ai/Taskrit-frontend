@@ -42,6 +42,7 @@ const MessagesPage = () => {
 
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
+  const [searchedUsers, setSearchedUsers] = useState<ChatUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [selectedProfileUser, setSelectedProfileUser] = useState<ChatUser | null>(null);
@@ -49,6 +50,7 @@ const MessagesPage = () => {
   const [roomListSearchQuery, setRoomListSearchQuery] = useState('');
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setWsConnected] = useState(false);
@@ -2609,13 +2611,9 @@ const MessagesPage = () => {
     })
     : rooms;
   const userSearchResults = normalizedRoomListSearchQuery
-    ? chatUsers
-      .filter((chatUser) => chatUser.user_uuid !== user?.user_uuid)
-      .filter((chatUser) => (
-        toSearchText(chatUser.nickname).includes(normalizedRoomListSearchQuery)
-        || toSearchText(chatUser.user_id).includes(normalizedRoomListSearchQuery)
-      ))
+    ? [...searchedUsers]
       .sort((a, b) => Number(!!findDmRoomByUserUuid(b.user_uuid)) - Number(!!findDmRoomByUserUuid(a.user_uuid)))
+      .slice(0, 10)
     : [];
   const inviteSearchNormalized = inviteSearchQuery.trim().toLowerCase();
   const selectedRoomMemberIdentifiers = new Set((selectedRoom?.members ?? []).filter(Boolean));
@@ -2637,6 +2635,41 @@ const MessagesPage = () => {
         || toSearchText(chatUser.user_id).includes(inviteSearchNormalized)
       );
     });
+
+  useEffect(() => {
+    if (!accessToken || !normalizedRoomListSearchQuery) {
+      setSearchedUsers([]);
+      setIsSearchingUsers(false);
+      return;
+    }
+
+    let disposed = false;
+    const timerId = window.setTimeout(async () => {
+      try {
+        setIsSearchingUsers(true);
+        const results = await listChatUsers(accessToken, {
+          query: normalizedRoomListSearchQuery,
+          limit: 10,
+        });
+
+        if (disposed) return;
+        setSearchedUsers(results.filter((chatUser) => chatUser.user_uuid !== user?.user_uuid));
+      } catch {
+        if (!disposed) {
+          setSearchedUsers([]);
+        }
+      } finally {
+        if (!disposed) {
+          setIsSearchingUsers(false);
+        }
+      }
+    }, 180);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(timerId);
+    };
+  }, [accessToken, normalizedRoomListSearchQuery, user?.user_uuid]);
 
   useEffect(() => {
     const originalOverflowHtml = document.documentElement.style.overflow;
@@ -3066,8 +3099,11 @@ const MessagesPage = () => {
               <div>
                 <div className="px-1 mb-1 text-base font-bold tracking-wide text-white">사용자 검색</div>
                 <div className="flex flex-col gap-1">
-                  {userSearchResults.map((chatUser) => renderUserSearchItem(chatUser))}
-                  {userSearchResults.length === 0 && (
+                  {isSearchingUsers && (
+                    <div className="text-xs text-text-hint py-3 px-2">사용자 검색 중...</div>
+                  )}
+                  {!isSearchingUsers && userSearchResults.map((chatUser) => renderUserSearchItem(chatUser))}
+                  {!isSearchingUsers && userSearchResults.length === 0 && (
                     <div className="text-xs text-text-hint py-3 px-2">사용자 검색 결과가 없습니다.</div>
                   )}
                 </div>
