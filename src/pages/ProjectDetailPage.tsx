@@ -1,7 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthStore } from '../lib/store';
-import { deleteProject, getProject, updateProject, type Project } from '../lib/api';
+import {
+  createTeamRoom,
+  deleteProject,
+  getProject,
+  listChatUsers,
+  updateProject,
+  type Project,
+} from '../lib/api';
 import PopupModal from '../components/PopupModal';
 
 interface MatchedCandidate {
@@ -16,6 +23,7 @@ const ProjectDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
   const tryRefresh = useAuthStore((s) => s.tryRefresh);
   const logout = useAuthStore((s) => s.logout);
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'submissions'>('overview');
@@ -29,6 +37,7 @@ const ProjectDetailPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreatingNegotiationRoom, setIsCreatingNegotiationRoom] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +88,138 @@ const ProjectDetailPage = () => {
   const matchedCandidates = useMemo(() => {
     return detailedDescription ? parseMatchingResults(detailedDescription) : [];
   }, [detailedDescription]);
+
+  const parseRequirementCandidates = (requirements: string): MatchedCandidate[] => {
+    if (!requirements.trim()) return [];
+
+    const rows = requirements.split('\n');
+    const parsed: MatchedCandidate[] = [];
+
+    for (const raw of rows) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      const [left, ...rightParts] = line.split(' - ');
+      if (!left || rightParts.length === 0) continue;
+
+      const typeToken = left.replace(/^\d+\)\s*/, '').split('/')[0]?.trim().toLowerCase();
+      const displayName = rightParts.join(' - ').replace(/\s*\(조종사:\s*[^)]+\)\s*$/i, '').trim();
+
+      if (!displayName) continue;
+
+      let type: MatchedCandidate['type'] = 'human';
+      if (typeToken === 'agent' || typeToken === 'ai') type = 'ai';
+      if (typeToken === 'robot') type = 'robot';
+      if (typeToken === 'asset') type = 'asset';
+
+      parsed.push({
+        ability: '',
+        name: displayName,
+        type,
+        score: 0,
+      });
+    }
+
+    return parsed;
+  };
+
+  const getNegotiationTargets = (): string[] => {
+    const merged = [...matchedCandidates, ...parseRequirementCandidates(teamRequirements)];
+    const dedup = new Map<string, string>();
+
+    merged.forEach((candidate) => {
+      if (candidate.type === 'asset') return;
+
+      const name = candidate.name.trim();
+      if (!name) return;
+
+      const key = name.toLowerCase();
+      if (!dedup.has(key)) {
+        dedup.set(key, name);
+      }
+    });
+
+    return Array.from(dedup.values());
+  };
+
+  const resolveTargetUserUuids = async (token: string, targets: string[]): Promise<string[]> => {
+    const myUserUuid = user?.user_uuid;
+    const resolvedUserUuids = new Set<string>();
+
+    await Promise.all(targets.map(async (targetName) => {
+      const users = await listChatUsers(token, { query: targetName, limit: 10 });
+      const normalized = targetName.trim().toLowerCase();
+
+      const exact = users.filter((chatUser) => (
+        chatUser.nickname?.trim().toLowerCase() === normalized
+        || chatUser.user_id?.trim().toLowerCase() === normalized
+      ));
+
+      const exactNickname = exact.filter((chatUser) => chatUser.nickname?.trim().toLowerCase() === normalized);
+      const chosen = exactNickname.length === 1
+        ? exactNickname[0]
+        : exact.length === 1
+          ? exact[0]
+          : users.length === 1
+            ? users[0]
+            : null;
+
+      if (chosen && chosen.user_uuid !== myUserUuid) {
+        resolvedUserUuids.add(chosen.user_uuid);
+      }
+    }));
+
+    return Array.from(resolvedUserUuids);
+  };
+
+  const handleNegotiateWithTeam = async () => {
+    if (!accessToken || isCreatingNegotiationRoom) return;
+
+    const targetNames = getNegotiationTargets();
+    if (targetNames.length === 0) {
+      setError('협상할 추천 인원을 찾지 못했습니다. AI 추천 팀을 먼저 생성해 주세요.');
+      return;
+    }
+
+    const roomTitle = (name || project?.name || '').trim() || '프로젝트 협상방';
+
+    setIsCreatingNegotiationRoom(true);
+    setError(null);
+
+    const createAndNavigate = async (token: string) => {
+      const memberUserUuids = await resolveTargetUserUuids(token, targetNames);
+
+      if (memberUserUuids.length === 0) {
+        throw new Error('추천 인원 중 채팅 가능한 사용자를 찾지 못했습니다.');
+      }
+
+      const newRoom = await createTeamRoom(token, memberUserUuids, roomTitle);
+      navigate(`/messages?room=${encodeURIComponent(newRoom.room_id)}`);
+    };
+
+    try {
+      await createAndNavigate(accessToken);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            await createAndNavigate(token);
+          } catch (retryErr: any) {
+            setError(retryErr.message || '협상 채팅방 생성에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setError(err.message || '협상 채팅방 생성에 실패했습니다');
+      }
+    } finally {
+      setIsCreatingNegotiationRoom(false);
+    }
+  };
 
   const formatBudget = (value: number | null): string => {
     if (value === null || value === undefined) return '';
@@ -523,10 +664,13 @@ const ProjectDetailPage = () => {
           )}
 
           <button
-            onClick={() => navigate('/messages')}
+            onClick={handleNegotiateWithTeam}
+            disabled={isCreatingNegotiationRoom}
             className="glass-card glass-card-hover rounded-lg p-4 text-left transition-all cursor-pointer"
           >
-            <span className="text-sm font-medium">💬 팀원과 협상하기</span>
+            <span className="text-sm font-medium">
+              {isCreatingNegotiationRoom ? '💬 협상 채팅방 생성 중...' : '💬 팀원과 협상하기'}
+            </span>
             <p className="text-xs text-text-sub mt-1">메시지로 역할과 조건을 조율하세요</p>
           </button>
         </div>
