@@ -130,6 +130,12 @@ const ProjectsPage = () => {
             새로고침
           </button>
           <button
+            onClick={() => navigate('/projects/ability-search')}
+            className="btn-secondary px-4 py-2.5 rounded-lg text-sm"
+          >
+            능력치 검색
+          </button>
+          <button
             onClick={() => navigate('/projects/new')}
             className="btn-primary px-5 py-2.5 rounded-lg text-sm cursor-pointer"
           >

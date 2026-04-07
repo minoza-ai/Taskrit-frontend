@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectCreatePage from './pages/ProjectCreatePage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
+import AbilitySearchPage from './pages/AbilitySearchPage';
 import WorkspacePage from './pages/WorkspacePage';
 import MarketplacePage from './pages/MarketplacePage';
 import MembershipPage from './pages/MembershipPage';
@@ -50,6 +51,7 @@ const App = () => {
         <Route path="/my/assets" element={<MyAssetsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/ability-search" element={<AbilitySearchPage />} />
         <Route path="/projects/new" element={<ProjectCreatePage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
