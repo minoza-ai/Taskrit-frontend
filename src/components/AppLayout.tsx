@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import { useThemeStore } from '../lib/theme';
+import { useBalanceDisplaySettingsStore } from '../lib/balanceDisplaySettings';
 
 /* Icons */
 const DashboardIcon = () => {
@@ -94,6 +95,7 @@ type PendingIncomingCall = {
 const PENDING_INCOMING_CALL_STORAGE_KEY = 'taskrit:pending-incoming-call';
 const PENDING_INCOMING_CALL_MAX_AGE_MS = 90 * 1000;
 const CHAT_MESSAGE_OVERLAY_DURATION_MS = 4500;
+const TASK_TO_KRW_RATE = 1325;
 
 const AppLayout = () => {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -104,6 +106,7 @@ const AppLayout = () => {
   const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+  const balanceDisplayUnit = useBalanceDisplaySettingsStore((s) => s.balanceDisplayUnit);
   const [notifications, setNotifications] = useState<ChatNotification[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -132,6 +135,21 @@ const AppLayout = () => {
   const taskTokenImage = `${import.meta.env.BASE_URL}token.png`;
   const profileInitial = (user?.nickname?.[0] || user?.user_id?.[0] || 'U').toUpperCase();
   const unreadNotificationCount = useMemo(() => notifications.filter((item) => !item.seen).length, [notifications]);
+  const navBalanceLabel = useMemo(() => {
+    if (taskTokenBalance === null) {
+      return null;
+    }
+
+    if (balanceDisplayUnit === 'krw') {
+      return new Intl.NumberFormat('ko-KR', {
+        style: 'currency',
+        currency: 'KRW',
+        maximumFractionDigits: 0,
+      }).format(taskTokenBalance * TASK_TO_KRW_RATE);
+    }
+
+    return `${taskTokenBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })} TASK`;
+  }, [balanceDisplayUnit, taskTokenBalance]);
 
   const toChatAssetUrl = (assetUrl?: string): string | null => {
     if (!assetUrl) {
@@ -797,7 +815,7 @@ const AppLayout = () => {
               )}
             </div>
 
-            {user?.wallet_address && taskTokenBalance !== null && (
+            {user?.wallet_address && navBalanceLabel !== null && (
               <button
                 type="button"
                 onClick={() => navigate('/exchange')}
@@ -807,7 +825,7 @@ const AppLayout = () => {
               >
                 <img src={taskTokenImage} alt="TASK" className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm bg-surface-3" />
                 <span className="text-xs font-semibold text-text tabular-nums tracking-tight">
-                  {taskTokenBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })} <span className="text-[10px] text-text-hint font-medium ml-0.5">TASK</span>
+                  {navBalanceLabel}
                 </span>
               </button>
             )}

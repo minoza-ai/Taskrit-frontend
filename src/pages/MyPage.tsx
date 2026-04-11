@@ -4,6 +4,7 @@ import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 import PopupModal from '../components/PopupModal';
 import { useChatSettingsStore } from '../lib/chatSettings';
+import { useBalanceDisplaySettingsStore } from '../lib/balanceDisplaySettings';
 import bs58 from 'bs58';
 
 const MyPage = () => {
@@ -21,6 +22,8 @@ const MyPage = () => {
   const setMessageStyle = useChatSettingsStore((s) => s.setMessageStyle);
   const shiftEnterBehavior = useChatSettingsStore((s) => s.shiftEnterBehavior);
   const setShiftEnterBehavior = useChatSettingsStore((s) => s.setShiftEnterBehavior);
+  const balanceDisplayUnit = useBalanceDisplaySettingsStore((s) => s.balanceDisplayUnit);
+  const setBalanceDisplayUnit = useBalanceDisplaySettingsStore((s) => s.setBalanceDisplayUnit);
   const location = useLocation();
 
   const [editMode, setEditMode] = useState(false);
@@ -658,7 +661,40 @@ const MyPage = () => {
 
       {/* Chat Settings */}
       <div className="glass-card rounded-lg p-5 mb-4">
+        <h2 className="text-base font-semibold mb-4">잔액 표시 설정</h2>
+        <div>
+          <span className="text-sm font-medium text-text block mb-2">내비게이션 바 잔액 단위</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setBalanceDisplayUnit('task')}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${balanceDisplayUnit === 'task'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-border hover:bg-surface-2'
+                }`}
+            >
+              <span className="text-sm font-semibold block">TASK</span>
+              <span className="text-xs text-text-sub">토큰 단위로 표시</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBalanceDisplayUnit('krw')}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${balanceDisplayUnit === 'krw'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-border hover:bg-surface-2'
+                }`}
+            >
+              <span className="text-sm font-semibold block">원화 (KRW)</span>
+              <span className="text-xs text-text-sub">환율 1 TASK = ₩1,325 기준</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-lg p-5 mb-4">
         <h2 className="text-base font-semibold mb-4">채팅 설정</h2>
+
         <div className="mb-4">
           <span className="text-sm font-medium text-text block mb-2">채팅 디자인</span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
