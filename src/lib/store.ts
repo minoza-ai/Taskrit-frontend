@@ -67,7 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loginWithWallet: async (walletAddress, signature, nonce, message, otpCode) => {
     set({ isLoading: true });
     try {
-      const tokens = await api.walletLogin(walletAddress, signature, nonce, message, 'base64', otpCode);
+      const tokens = await api.walletLogin(walletAddress, signature, nonce, message, 'base58', otpCode);
       saveTokens(tokens.access_token, tokens.refresh_token);
       set({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
       const user = await api.getMe(tokens.access_token);

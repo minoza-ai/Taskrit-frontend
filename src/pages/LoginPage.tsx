@@ -2,14 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
-
-const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-};
+import bs58 from 'bs58';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -70,7 +63,14 @@ const LoginPage = () => {
         return;
       }
 
-      const connectResult = await window.solana.connect();
+      // Refresh provider session so account switch is reflected immediately.
+      try {
+        await window.solana.disconnect?.();
+      } catch {
+        // Ignore disconnect errors and continue with explicit connect.
+      }
+
+      const connectResult = await window.solana.connect({ onlyIfTrusted: false });
       const walletAddress = connectResult.publicKey?.toString() || window.solana.publicKey?.toString();
 
       if (!walletAddress) {
@@ -81,7 +81,7 @@ const LoginPage = () => {
       const { nonce, message } = await api.walletConnectRequest(walletAddress);
       const encodedMessage = new TextEncoder().encode(message);
       const signed = await window.solana.signMessage(encodedMessage, 'utf8');
-      const signature = uint8ArrayToBase64(signed.signature);
+        const signature = bs58.encode(signed.signature);
 
       await loginWithWallet(walletAddress, signature, nonce, message, otpCode.trim() || undefined);
       navigate('/dashboard');
@@ -195,7 +195,8 @@ declare global {
   interface SolanaProvider {
     isPhantom?: boolean;
     publicKey?: { toString(): string };
-    connect: () => Promise<{ publicKey: { toString(): string } }>;
+    connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString(): string } }>;
+    disconnect?: () => Promise<void>;
     signMessage: (
       message: Uint8Array,
       display?: 'utf8' | 'hex',

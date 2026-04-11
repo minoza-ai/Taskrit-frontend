@@ -4,14 +4,7 @@ import { useAuthStore } from '../lib/store';
 import * as api from '../lib/api';
 import PopupModal from '../components/PopupModal';
 import { useChatSettingsStore } from '../lib/chatSettings';
-
-const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-};
+import bs58 from 'bs58';
 
 const MyPage = () => {
   const user = useAuthStore((s) => s.user);
@@ -215,7 +208,14 @@ const MyPage = () => {
         return;
       }
 
-      const connectResult = await window.solana.connect();
+      // Ensure provider state is fresh so switched accounts are reflected immediately.
+      try {
+        await window.solana.disconnect?.();
+      } catch {
+        // Ignore provider disconnect errors and continue with explicit connect.
+      }
+
+      const connectResult = await window.solana.connect({ onlyIfTrusted: false });
       const walletAddress = connectResult.publicKey?.toString() || window.solana.publicKey?.toString();
 
       if (!walletAddress) {
@@ -229,13 +229,19 @@ const MyPage = () => {
 
       const encodedMessage = new TextEncoder().encode(message);
       const signed = await window.solana.signMessage(encodedMessage, 'utf8');
-      const signature = uint8ArrayToBase64(signed.signature);
+      const signature = bs58.encode(signed.signature);
 
       // Step 3: Confirm
       try {
-        await api.walletConnectConfirm(accessToken, walletAddress, signature, nonce, message, 'base64');
+        await api.walletConnectConfirm(accessToken, walletAddress, signature, nonce, message, 'base58');
       } catch (err: any) {
         if (err.status !== 401) throw err;
+
+        // If the backend specifically rejected the signature, don't try to refresh the token.
+        // It means the token was valid, but the signature itself was bad.
+        if (err.body?.error === 'Signature does not match wallet address or message') {
+          throw err;
+        }
 
         const refreshed = await tryRefresh();
         if (!refreshed) {
@@ -249,7 +255,7 @@ const MyPage = () => {
           throw err;
         }
 
-        await api.walletConnectConfirm(refreshedToken, walletAddress, signature, nonce, message, 'base64');
+        await api.walletConnectConfirm(refreshedToken, walletAddress, signature, nonce, message, 'base58');
       }
 
       setWalletStatus('지갑이 연동되었습니다');
@@ -287,6 +293,11 @@ const MyPage = () => {
       }
 
       setWalletStatus('지갑 연동이 해제되었습니다');
+      try {
+        await window.solana?.disconnect?.();
+      } catch {
+        // Ignore provider disconnect errors because backend unlink already succeeded.
+      }
       await fetchUser();
     } catch (err: any) {
       setWalletError(err.message || '지갑 연동 해제에 실패했습니다');
@@ -872,7 +883,8 @@ declare global {
   interface SolanaProvider {
     isPhantom?: boolean;
     publicKey?: { toString(): string };
-    connect: () => Promise<{ publicKey: { toString(): string } }>;
+    connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString(): string } }>;
+    disconnect?: () => Promise<void>;
     signMessage: (
       message: Uint8Array,
       display?: 'utf8' | 'hex',

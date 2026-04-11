@@ -2,12 +2,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthStore } from '../lib/store';
 import {
+  approveProjectSubmission,
+  createProjectSubmission,
   createTeamRoom,
   deleteProject,
   getProject,
+  listProjectSubmissions,
   listChatUsers,
   updateProject,
+  uploadProjectSubmissionArtifact,
   type Project,
+  type ProjectSubmission,
 } from '../lib/api';
 import PopupModal from '../components/PopupModal';
 
@@ -38,8 +43,23 @@ const ProjectDetailPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCreatingNegotiationRoom, setIsCreatingNegotiationRoom] = useState(false);
+  const [isStartingProject, setIsStartingProject] = useState(false);
+  const [isEditingRoles, setIsEditingRoles] = useState(false);
+  const [isSubmittingResult, setIsSubmittingResult] = useState(false);
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
+  const [approvingSubmissionUuid, setApprovingSubmissionUuid] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [teamActionStatus, setTeamActionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editableTeam, setEditableTeam] = useState<MatchedCandidate[]>([]);
+  const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
+  const [submissionTitle, setSubmissionTitle] = useState('');
+  const [submissionDescription, setSubmissionDescription] = useState('');
+  const [artifactUrl, setArtifactUrl] = useState('');
+  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
+  const [submissionStatus, setSubmissionStatus] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [approveAmounts, setApproveAmounts] = useState<Record<string, string>>({});
 
   const typeIcons: Record<string, string> = {
     human: '👤',
@@ -88,6 +108,15 @@ const ProjectDetailPage = () => {
   const matchedCandidates = useMemo(() => {
     return detailedDescription ? parseMatchingResults(detailedDescription) : [];
   }, [detailedDescription]);
+
+  useEffect(() => {
+    if (isEditingRoles) return;
+    setEditableTeam(matchedCandidates.map((candidate) => ({ ...candidate })));
+  }, [matchedCandidates, isEditingRoles]);
+
+  const isProjectOwner = useMemo(() => {
+    return !!(project && user && project.owner_user_uuid === user.user_uuid);
+  }, [project, user]);
 
   const parseRequirementCandidates = (requirements: string): MatchedCandidate[] => {
     if (!requirements.trim()) return [];
@@ -218,6 +247,142 @@ const ProjectDetailPage = () => {
       }
     } finally {
       setIsCreatingNegotiationRoom(false);
+    }
+  };
+
+  const toRequirementType = (type: MatchedCandidate['type']): string => {
+    if (type === 'ai') return 'ai';
+    return type;
+  };
+
+  const accountTypeLabel = (type: MatchedCandidate['type']): string => {
+    if (type === 'human') return 'human';
+    if (type === 'ai') return 'agent';
+    if (type === 'robot') return 'robot';
+    return 'asset';
+  };
+
+  const formatScore = (value: number): string => value.toFixed(2);
+
+  const sanitizeTeamCandidates = (candidates: MatchedCandidate[]): MatchedCandidate[] => {
+    return candidates
+      .map((candidate) => ({
+        ...candidate,
+        ability: candidate.ability.trim(),
+        name: candidate.name.trim(),
+      }))
+      .filter((candidate) => candidate.ability && candidate.name);
+  };
+
+  const stripAiMatchSection = (description: string): string => {
+    const [base] = description.split('[AI 매칭 제안]');
+    return base.trimEnd();
+  };
+
+  const buildTeamRequirements = (candidates: MatchedCandidate[]): string | null => {
+    if (candidates.length === 0) return null;
+
+    return candidates
+      .map((candidate, idx) => {
+        const role = candidate.ability.trim() || '역할 미정';
+        return `${idx + 1}) ${toRequirementType(candidate.type)}/1개/${role} - ${candidate.name.trim()}`;
+      })
+      .join('\n');
+  };
+
+  const buildAiSummary = (candidates: MatchedCandidate[]): string => {
+    if (candidates.length === 0) return '';
+
+    return `[AI 매칭 제안]\n${candidates
+      .map((candidate) => (
+        `- ${candidate.ability}: ${candidate.name} (${accountTypeLabel(candidate.type)}, score ${formatScore(candidate.score)})`
+      ))
+      .join('\n')}`;
+  };
+
+  const handleRoleEditToggle = () => {
+    if (!isEditingRoles) {
+      setEditableTeam(matchedCandidates.map((candidate) => ({ ...candidate })));
+      setTeamActionStatus(null);
+      setIsEditingRoles(true);
+      return;
+    }
+
+    const sanitized = sanitizeTeamCandidates(editableTeam);
+    if (sanitized.length === 0) {
+      setError('최소 1개 이상의 역할과 담당자를 입력해주세요.');
+      return;
+    }
+
+    setEditableTeam(sanitized);
+    setIsEditingRoles(false);
+    setTeamActionStatus('역할 편집이 적용되었습니다. "이 팀으로 프로젝트 시작하기"를 눌러 저장하세요.');
+  };
+
+  const handleRoleFieldChange = (idx: number, key: 'ability' | 'name', value: string) => {
+    setEditableTeam((prev) => prev.map((candidate, i) => (i === idx ? { ...candidate, [key]: value } : candidate)));
+  };
+
+  const handleStartProjectWithTeam = async () => {
+    if (!accessToken || !id || isStartingProject) return;
+
+    const source = isEditingRoles ? editableTeam : (editableTeam.length > 0 ? editableTeam : matchedCandidates);
+    const finalizedCandidates = sanitizeTeamCandidates(source);
+
+    if (finalizedCandidates.length === 0) {
+      setError('저장할 팀 구성이 없습니다. AI 추천 팀을 먼저 확인하거나 역할을 입력해주세요.');
+      return;
+    }
+
+    const serializedRequirements = buildTeamRequirements(finalizedCandidates);
+    const aiSummary = buildAiSummary(finalizedCandidates);
+    const baseDescription = stripAiMatchSection(detailedDescription || '');
+    const updatedDescription = [baseDescription, aiSummary].filter(Boolean).join('\n\n');
+
+    setIsStartingProject(true);
+    setError(null);
+    setTeamActionStatus(null);
+
+    const runStart = async (token: string) => {
+      const response = await updateProject(token, id, {
+        name: name.trim(),
+        category: category.trim() || null,
+        budget: parseBudgetToNumber(budget),
+        deadline: parseDeadlineToUnix(deadline),
+        team_requirements: serializedRequirements,
+        detailed_description: updatedDescription || null,
+      });
+
+      setProject(response.project);
+      setTeamRequirements(response.project.team_requirements || '');
+      setDetailedDescription(response.project.detailed_description || '');
+      setEditableTeam(finalizedCandidates);
+      setIsEditingRoles(false);
+      setTeamActionStatus('팀 구성이 저장되었습니다. 결과물 탭에서 제출을 진행하세요.');
+      setActiveTab('submissions');
+    };
+
+    try {
+      await runStart(accessToken);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            await runStart(token);
+          } catch (retryErr: any) {
+            setError(retryErr.message || '프로젝트 시작 처리에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setError(err.message || '프로젝트 시작 처리에 실패했습니다');
+      }
+    } finally {
+      setIsStartingProject(false);
     }
   };
 
@@ -395,6 +560,186 @@ const ProjectDetailPage = () => {
     return new Date(unix * 1000).toLocaleString('ko-KR');
   };
 
+  const statusLabel = (status: ProjectSubmission['status']): string => {
+    if (status === 'submitted') return '제출됨';
+    if (status === 'approved') return '승인됨';
+    return '반려됨';
+  };
+
+  const statusColor = (status: ProjectSubmission['status']): string => {
+    if (status === 'submitted') return 'text-text-sub bg-surface-2';
+    if (status === 'approved') return 'text-success bg-success/10';
+    return 'text-error bg-error-bg';
+  };
+
+  const resolveArtifactHref = (value: string): string => {
+    if (value.startsWith('/uploads/')) {
+      return `/api${value}`;
+    }
+
+    return value;
+  };
+
+  const loadSubmissions = async (token: string) => {
+    if (!id) return;
+    const result = await listProjectSubmissions(token, id);
+    setSubmissions(result.submissions || []);
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'submissions' || !accessToken || !id) return;
+
+    let ignore = false;
+
+    const run = async () => {
+      setIsLoadingSubmissions(true);
+      setSubmissionError(null);
+      try {
+        await loadSubmissions(accessToken);
+      } catch (err: any) {
+        if (err.status === 401) {
+          const refreshed = await tryRefresh();
+          if (refreshed) {
+            try {
+              const token = useAuthStore.getState().accessToken;
+              if (!token) throw new Error('로그인이 필요합니다');
+              await loadSubmissions(token);
+            } catch (retryErr: any) {
+              if (!ignore) setSubmissionError(retryErr.message || '결과물 목록을 불러오지 못했습니다');
+            }
+          } else {
+            logout();
+          }
+        } else {
+          if (!ignore) setSubmissionError(err.message || '결과물 목록을 불러오지 못했습니다');
+        }
+      } finally {
+        if (!ignore) setIsLoadingSubmissions(false);
+      }
+    };
+
+    run();
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeTab, accessToken, id, logout, tryRefresh]);
+
+  const handleSubmitResult = async () => {
+    if (!accessToken || !id || isSubmittingResult) return;
+
+    const title = submissionTitle.trim();
+    if (!title) {
+      setSubmissionError('결과물 제목을 입력해주세요.');
+      return;
+    }
+
+    setIsSubmittingResult(true);
+    setSubmissionError(null);
+    setSubmissionStatus(null);
+
+    const runSubmit = async (token: string) => {
+      let resolvedArtifactUrl = artifactUrl.trim() || null;
+
+      if (submissionFile) {
+        const uploaded = await uploadProjectSubmissionArtifact(token, id, submissionFile);
+        resolvedArtifactUrl = uploaded.artifact_url;
+      }
+
+      await createProjectSubmission(token, id, {
+        title,
+        description: submissionDescription.trim() || null,
+        artifact_url: resolvedArtifactUrl,
+      });
+      await loadSubmissions(token);
+    };
+
+    try {
+      await runSubmit(accessToken);
+      setSubmissionTitle('');
+      setSubmissionDescription('');
+      setArtifactUrl('');
+      setSubmissionFile(null);
+      setSubmissionStatus('결과물이 제출되었습니다.');
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            await runSubmit(token);
+            setSubmissionTitle('');
+            setSubmissionDescription('');
+            setArtifactUrl('');
+            setSubmissionFile(null);
+            setSubmissionStatus('결과물이 제출되었습니다.');
+          } catch (retryErr: any) {
+            setSubmissionError(retryErr.message || '결과물 제출에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setSubmissionError(err.message || '결과물 제출에 실패했습니다');
+      }
+    } finally {
+      setIsSubmittingResult(false);
+    }
+  };
+
+  const handleApproveSubmission = async (submissionUuid: string) => {
+    if (!accessToken || !id || approvingSubmissionUuid) return;
+
+    const rawAmount = approveAmounts[submissionUuid]?.trim() || '';
+    const settlementAmount = rawAmount ? Number(rawAmount) : undefined;
+
+    if (rawAmount && (!Number.isFinite(settlementAmount) || (settlementAmount ?? 0) <= 0)) {
+      setSubmissionError('정산 금액은 0보다 큰 숫자여야 합니다.');
+      return;
+    }
+
+    setApprovingSubmissionUuid(submissionUuid);
+    setSubmissionError(null);
+    setSubmissionStatus(null);
+
+    const runApprove = async (token: string) => {
+      const result = await approveProjectSubmission(token, id, submissionUuid, settlementAmount);
+      setProject(result.project);
+      setSubmissions((prev) => prev.map((submission) => (
+        submission.submission_uuid === submissionUuid
+          ? result.submission
+          : submission.status === 'submitted'
+            ? { ...submission, status: 'rejected', updated_at: result.submission.updated_at }
+            : submission
+      )));
+      setSubmissionStatus(`정산 완료: ${result.settlement.amount.toLocaleString('ko-KR')} TASK`);
+    };
+
+    try {
+      await runApprove(accessToken);
+    } catch (err: any) {
+      if (err.status === 401) {
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          try {
+            const token = useAuthStore.getState().accessToken;
+            if (!token) throw new Error('로그인이 필요합니다');
+            await runApprove(token);
+          } catch (retryErr: any) {
+            setSubmissionError(retryErr.message || '결과물 승인에 실패했습니다');
+          }
+        } else {
+          logout();
+        }
+      } else {
+        setSubmissionError(err.message || '결과물 승인에 실패했습니다');
+      }
+    } finally {
+      setApprovingSubmissionUuid(null);
+    }
+  };
+
   return (
     <div className="animate-in">
       <div className="flex items-center gap-3 mb-6">
@@ -410,6 +755,12 @@ const ProjectDetailPage = () => {
       {error && (
         <div className="mb-4 px-4 py-3 rounded-md bg-error-bg text-error text-sm">
           {error}
+        </div>
+      )}
+
+      {teamActionStatus && (
+        <div className="mb-4 px-4 py-3 rounded-md bg-success/12 text-success text-sm">
+          {teamActionStatus}
         </div>
       )}
 
@@ -569,7 +920,7 @@ const ProjectDetailPage = () => {
 
               {/* Candidate Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {matchedCandidates.map((candidate, idx) => (
+                {(isEditingRoles ? editableTeam : matchedCandidates).map((candidate, idx) => (
                   <div
                     key={`${candidate.ability}-${idx}`}
                     className="glass-card rounded-lg p-5 flex flex-col items-center text-center hover:shadow-md transition-shadow"
@@ -580,15 +931,33 @@ const ProjectDetailPage = () => {
                     </div>
 
                     {/* Role Title */}
-                    <h3 className="text-sm font-bold mb-4 text-text line-clamp-2 min-h-10">
-                      {candidate.ability}
-                    </h3>
+                    {isEditingRoles ? (
+                      <input
+                        type="text"
+                        value={candidate.ability}
+                        onChange={(e) => handleRoleFieldChange(idx, 'ability', e.target.value)}
+                        className="glass-input w-full px-2.5 py-2 rounded-md text-xs font-semibold mb-4 text-center"
+                      />
+                    ) : (
+                      <h3 className="text-sm font-bold mb-4 text-text line-clamp-2 min-h-10">
+                        {candidate.ability}
+                      </h3>
+                    )}
 
                     {/* Icon */}
                     <div className="text-4xl mb-4">{typeIcons[candidate.type]}</div>
 
                     {/* Name */}
-                    <p className="text-sm font-semibold text-text mb-1">{candidate.name}</p>
+                    {isEditingRoles ? (
+                      <input
+                        type="text"
+                        value={candidate.name}
+                        onChange={(e) => handleRoleFieldChange(idx, 'name', e.target.value)}
+                        className="glass-input w-full px-2.5 py-2 rounded-md text-xs mb-1 text-center"
+                      />
+                    ) : (
+                      <p className="text-sm font-semibold text-text mb-1">{candidate.name}</p>
+                    )}
 
                     {/* Info */}
                     <div className="text-xs text-text-sub mb-4 min-h-10">
@@ -641,11 +1010,18 @@ const ProjectDetailPage = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="text-xs px-3 py-2 rounded-lg bg-surface text-text-sub hover:bg-surface-2 transition-colors">
-                    역할 수정
+                  <button
+                    onClick={handleRoleEditToggle}
+                    className="text-xs px-3 py-2 rounded-lg bg-surface text-text-sub hover:bg-surface-2 transition-colors"
+                  >
+                    {isEditingRoles ? '역할 수정 완료' : '역할 수정'}
                   </button>
-                  <button className="btn-primary px-4 py-2 rounded-lg text-xs whitespace-nowrap cursor-pointer">
-                    이 팀으로 프로젝트 시작하기
+                  <button
+                    onClick={handleStartProjectWithTeam}
+                    disabled={isStartingProject}
+                    className="btn-primary px-4 py-2 rounded-lg text-xs whitespace-nowrap cursor-pointer"
+                  >
+                    {isStartingProject ? '프로젝트 시작 중...' : '이 팀으로 프로젝트 시작하기'}
                   </button>
                 </div>
               </div>
@@ -680,26 +1056,165 @@ const ProjectDetailPage = () => {
         <div className="flex flex-col gap-4">
           <div className="glass-card rounded-lg p-5">
             <h2 className="text-base font-semibold mb-3">결과물 제출</h2>
-            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-              <p className="text-sm text-text-sub mb-2">팀 매칭 확정 후 결과물을 제출할 수 있습니다</p>
-              <p className="text-xs text-text-hint">프롬프트, 코드, 데이터 파일 등</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-text-sub">제목</label>
+                <input
+                  type="text"
+                  value={submissionTitle}
+                  onChange={(e) => setSubmissionTitle(e.target.value)}
+                  placeholder="예: 최종 코드 및 테스트 결과"
+                  className="glass-input px-3.5 py-3 rounded-md text-sm font-sans"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-text-sub">설명</label>
+                <textarea
+                  value={submissionDescription}
+                  onChange={(e) => setSubmissionDescription(e.target.value)}
+                  placeholder="이번 제출에 포함된 내용과 확인 방법을 적어주세요"
+                  rows={4}
+                  className="glass-input px-3.5 py-3 rounded-md text-sm font-sans resize-y min-h-[110px]"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-text-sub">결과물 URL (선택)</label>
+                <input
+                  type="url"
+                  value={artifactUrl}
+                  onChange={(e) => setArtifactUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="glass-input px-3.5 py-3 rounded-md text-sm font-sans"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-text-sub">파일 첨부 (선택)</label>
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setSubmissionFile(file);
+                    if (file) {
+                      setArtifactUrl('');
+                    }
+                  }}
+                  className="glass-input px-3.5 py-2.5 rounded-md text-sm font-sans"
+                />
+                {submissionFile && (
+                  <p className="text-xs text-text-sub">
+                    선택된 파일: {submissionFile.name} ({Math.ceil(submissionFile.size / 1024)} KB)
+                  </p>
+                )}
+                <p className="text-xs text-text-hint">파일을 첨부하면 URL 대신 업로드된 파일 경로가 자동 저장됩니다.</p>
+              </div>
+
+              <button
+                onClick={handleSubmitResult}
+                disabled={isSubmittingResult}
+                className="btn-primary w-full py-3 rounded-lg text-sm"
+              >
+                {isSubmittingResult ? '제출 중...' : '결과물 제출하기'}
+              </button>
             </div>
           </div>
 
           <div className="glass-card rounded-lg p-5">
-            <h2 className="text-base font-semibold mb-3">블록체인 공탁 상태</h2>
-            <div className="flex items-center gap-3 p-3 bg-surface-2 rounded-lg">
-              <div className="w-2 h-2 rounded-full bg-text-hint" />
-              <span className="text-sm text-text-sub">대기 중</span>
-            </div>
+            <h2 className="text-base font-semibold mb-3">제출 내역</h2>
+
+            {submissionStatus && (
+              <div className="mb-3 px-3 py-2 rounded-md bg-success/12 text-success text-sm">
+                {submissionStatus}
+              </div>
+            )}
+
+            {submissionError && (
+              <div className="mb-3 px-3 py-2 rounded-md bg-error-bg text-error text-sm">
+                {submissionError}
+              </div>
+            )}
+
+            {isLoadingSubmissions ? (
+              <p className="text-sm text-text-sub">제출 내역을 불러오는 중입니다...</p>
+            ) : submissions.length === 0 ? (
+              <p className="text-sm text-text-sub">아직 제출된 결과물이 없습니다.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {submissions.map((submission) => (
+                  <div key={submission.submission_uuid} className="rounded-lg border border-border bg-surface-2 p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{submission.title}</p>
+                        <p className="text-xs text-text-hint mt-1">
+                          제출자: {submission.submitter_user_uuid} · {formatUnixTime(submission.created_at)}
+                        </p>
+                      </div>
+                      <span className={`text-[11px] px-2 py-1 rounded-full font-medium ${statusColor(submission.status)}`}>
+                        {statusLabel(submission.status)}
+                      </span>
+                    </div>
+
+                    {submission.description && (
+                      <p className="text-sm text-text-sub whitespace-pre-wrap mb-2">{submission.description}</p>
+                    )}
+
+                    {submission.artifact_url && (
+                      <a
+                        href={resolveArtifactHref(submission.artifact_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-active underline break-all"
+                      >
+                        {submission.artifact_url}
+                      </a>
+                    )}
+
+                    {submission.status === 'approved' && submission.settlement_amount !== null && (
+                      <p className="text-xs text-success mt-2">
+                        정산 완료: {submission.settlement_amount.toLocaleString('ko-KR')} TASK
+                      </p>
+                    )}
+
+                    {isProjectOwner && submission.status === 'submitted' && (
+                      <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={approveAmounts[submission.submission_uuid] || ''}
+                          onChange={(e) => setApproveAmounts((prev) => ({
+                            ...prev,
+                            [submission.submission_uuid]: e.target.value,
+                          }))}
+                          placeholder="정산 금액(선택, 미입력 시 기본값)"
+                          className="glass-input px-3 py-2 rounded-md text-xs font-sans"
+                        />
+                        <button
+                          onClick={() => handleApproveSubmission(submission.submission_uuid)}
+                          disabled={approvingSubmissionUuid === submission.submission_uuid}
+                          className="btn-primary py-2 rounded-md text-xs"
+                        >
+                          {approvingSubmissionUuid === submission.submission_uuid ? '승인/정산 중...' : '승인하고 자동 정산'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <button
-            onClick={() => navigate(`/workspace/${id}`)}
-            className="btn-secondary w-full py-3 rounded-lg text-sm"
-          >
-            협업 공간으로 이동 →
-          </button>
+          <div className="glass-card rounded-lg p-5">
+            <h2 className="text-base font-semibold mb-3">블록체인 정산 상태</h2>
+            <div className="flex items-center gap-3 p-3 bg-surface-2 rounded-lg">
+              <div className={`w-2 h-2 rounded-full ${submissions.some((s) => s.status === 'approved') ? 'bg-success' : 'bg-text-hint'}`} />
+              <span className="text-sm text-text-sub">
+                {submissions.some((s) => s.status === 'approved') ? '정산 완료된 제출이 있습니다' : '아직 정산이 완료되지 않았습니다'}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

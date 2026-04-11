@@ -349,6 +349,23 @@ export interface Project {
   deleted_at: number | null;
 }
 
+export type ProjectSubmissionStatus = 'submitted' | 'approved' | 'rejected';
+
+export interface ProjectSubmission {
+  submission_uuid: string;
+  project_uuid: string;
+  submitter_user_uuid: string;
+  title: string;
+  description: string | null;
+  artifact_url: string | null;
+  status: ProjectSubmissionStatus;
+  settlement_amount: number | null;
+  settlement_signature: string | null;
+  created_at: number;
+  updated_at: number;
+  settled_at: number | null;
+}
+
 export interface TeamingMatchCandidate {
   accountId: string;
   accountType: string;
@@ -459,6 +476,76 @@ export async function getUserDashboard(token: string): Promise<{
 }> {
   return request('/projects/dashboard', {
     headers: authHeaders(token),
+  });
+}
+
+export async function createProjectSubmission(
+  token: string,
+  project_uuid: string,
+  data: {
+    title: string;
+    description?: string | null;
+    artifact_url?: string | null;
+  },
+): Promise<{ message: string; submission: ProjectSubmission }> {
+  return request(`/projects/${project_uuid}/submissions`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+}
+
+export async function uploadProjectSubmissionArtifact(
+  token: string,
+  project_uuid: string,
+  file: File,
+): Promise<{
+  message: string;
+  artifact_url: string;
+  original_filename: string;
+  size: number;
+}> {
+  const formData = new FormData();
+  formData.append('artifact_file', file);
+
+  return request(`/projects/${project_uuid}/submissions/upload`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: formData,
+  });
+}
+
+export async function listProjectSubmissions(
+  token: string,
+  project_uuid: string,
+): Promise<{ submissions: ProjectSubmission[] }> {
+  return request(`/projects/${project_uuid}/submissions`, {
+    headers: authHeaders(token),
+  });
+}
+
+export async function approveProjectSubmission(
+  token: string,
+  project_uuid: string,
+  submission_uuid: string,
+  settlement_amount?: number,
+): Promise<{
+  message: string;
+  project: Project;
+  submission: ProjectSubmission;
+  settlement: {
+    amount: number;
+    signature: string;
+  };
+}> {
+  const body = settlement_amount && Number.isFinite(settlement_amount)
+    ? { settlement_amount }
+    : {};
+
+  return request(`/projects/${project_uuid}/submissions/${submission_uuid}/approve`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
   });
 }
 

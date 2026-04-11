@@ -11,7 +11,6 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectCreatePage from './pages/ProjectCreatePage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import AbilitySearchPage from './pages/AbilitySearchPage';
-import WorkspacePage from './pages/WorkspacePage';
 import MarketplacePage from './pages/MarketplacePage';
 import MembershipPage from './pages/MembershipPage';
 import MessagesPage from './pages/MessagesPage';
@@ -54,7 +53,6 @@ const App = () => {
         <Route path="/projects/ability-search" element={<AbilitySearchPage />} />
         <Route path="/projects/new" element={<ProjectCreatePage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
-        <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/marketplace" element={<MarketplacePage />} />
         <Route path="/exchange" element={<ExchangePage />} />
         <Route path="/membership" element={<MembershipPage />} />
